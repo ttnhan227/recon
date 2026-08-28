@@ -9,6 +9,51 @@
 
 ---
 
+## ⚡ Quick Demo (Proof in Action)
+
+```bash
+# 1. Install directly from PyPI
+pip install recon-qa[browser,ai]
+
+# 2. Run autonomous test suite against any running API or OpenAPI spec
+recon test http://localhost:8000 --concurrency 4
+```
+
+```text
++-----------------------------------------------------------------------------+
+| Recon AI QA Agent                                                           |
+| Target: http://127.0.0.1:8000 | Concurrency: 4 | AI: True                   |
++-----------------------------------------------------------------------------+
+[INFO] Auto-detected OpenAPI specification at http://127.0.0.1:8000/openapi.json
+[INFO] Generated 24 test cases (Happy Path, Boundary, Validation, Auth)
+[INFO] Executing 24 tests with concurrency=4
+ PASSED API-001 [POST /api/auth/login] Happy Path - Valid Request (42ms)
+ PASSED API-002 [POST /api/orders] Happy Path - Valid Request (38ms)
+ FAILED API-003 [POST /api/orders] Boundary - zero quantity (55ms) - Unhandled 500
+ PASSED API-004 [GET /api/admin/metrics] Auth - Reject Missing Token (21ms)
+ ...
+[INFO] Root Cause Analysis Engine:
+ ↳ Identified unhandled ZeroDivisionError in orders.py:48 (Confidence: 94%)
+ ↳ Suggested Fix: Add input validation for quantity > 0 before price calculation
+
++------------------------- Recon Test Run Completed --------------------------+
+| Execution Summary                                                           |
+|   Total Tests : 24  |  Passed : 22  |  Failed : 2  |  Pass Rate : 91.7%     |
+|   HTML Report : reports/run-20260828-095131-1b5354/report.html              |
+|   Latest Link : reports/latest.html                                         |
++-----------------------------------------------------------------------------+
+```
+
+---
+
+## 📸 Visual Preview & Reports
+
+| Autonomous CLI Test Runner | Interactive HTML Report & Root Cause Analysis |
+|:---:|:---:|
+| ![Recon Terminal Execution](docs/screenshots/recon-terminal.png) | ![Interactive HTML Report](docs/screenshots/recon-report.png) |
+
+---
+
 ## 1. Architecture Overview
 
 ```mermaid
@@ -203,7 +248,14 @@ recon generate http://localhost:8000 --output tests.json
 
 ### 3. Run Autonomous QA Tests
 ```bash
+# Basic run
 recon test http://localhost:8000 --browser --concurrency 4
+
+# With authentication / custom headers
+recon test http://localhost:8000 -H "Authorization: Bearer <jwt-token>" -H "X-Tenant-ID: workspace-1"
+
+# Target specific endpoints with wildcard filtering
+recon test http://localhost:8000 --include "/api/orders*" --exclude "/api/admin*"
 ```
 **Exit Codes:**
 - `0`: All tests passed cleanly.

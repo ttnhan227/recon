@@ -20,9 +20,16 @@ class TestSuiteGenerator:
     """Generates deterministic API and Browser test suites from discovered application assets."""
     __test__ = False
 
-    def __init__(self, app: DiscoveredApplication):
+    def __init__(self, app: DiscoveredApplication, default_headers: dict[str, str] | None = None):
         self.app = app
+        self.default_headers = default_headers or {}
         self.test_counter = 1
+
+    def _build_headers(self, has_body: bool = False, is_auth_test: bool = False) -> dict[str, str]:
+        headers = {} if is_auth_test else dict(self.default_headers)
+        if has_body:
+            headers["Content-Type"] = "application/json"
+        return headers
 
     def _next_id(self, prefix: str) -> str:
         tid = f"{prefix}-{self.test_counter:03d}"
@@ -101,7 +108,7 @@ class TestSuiteGenerator:
             method=ep.method,
             params=query_params,
             body=happy_body,
-            headers={"Content-Type": "application/json"} if happy_body is not None else {},
+            headers=self._build_headers(has_body=(happy_body is not None)),
             assertions=happy_assertions,
         )
 
@@ -130,7 +137,7 @@ class TestSuiteGenerator:
                     method=ep.method,
                     params=query_params,
                     body=val_body,
-                    headers={"Content-Type": "application/json"},
+                    headers=self._build_headers(has_body=True),
                     assertions=[
                         StepAssertion(
                             assertion_type=AssertionType.STATUS_CODE,
@@ -165,7 +172,7 @@ class TestSuiteGenerator:
                     method=ep.method,
                     params=query_params,
                     body=b_body,
-                    headers={"Content-Type": "application/json"},
+                    headers=self._build_headers(has_body=True),
                     assertions=[
                         StepAssertion(
                             assertion_type=AssertionType.STATUS_CODE,
@@ -200,7 +207,7 @@ class TestSuiteGenerator:
                     method=ep.method,
                     params=query_params,
                     body=neg_body,
-                    headers={"Content-Type": "application/json"},
+                    headers=self._build_headers(has_body=True),
                     assertions=[
                         StepAssertion(
                             assertion_type=AssertionType.STATUS_CODE,
@@ -234,7 +241,7 @@ class TestSuiteGenerator:
                 method=ep.method,
                 params=query_params,
                 body=happy_body,
-                headers={},  # No auth token
+                headers=self._build_headers(has_body=(happy_body is not None), is_auth_test=True),
                 assertions=[
                     StepAssertion(
                         assertion_type=AssertionType.STATUS_CODE,
@@ -267,6 +274,7 @@ class TestSuiteGenerator:
                 step_type="http_request",
                 endpoint=not_found_url,
                 method=ep.method,
+                headers=self._build_headers(has_body=False),
                 assertions=[
                     StepAssertion(
                         assertion_type=AssertionType.STATUS_CODE,

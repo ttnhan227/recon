@@ -56,6 +56,9 @@ class TestOrchestrator:
         target_url: str,
         spec_path_or_url: str | None = None,
         enable_browser: bool = False,
+        headers: dict[str, str] | None = None,
+        include_paths: list[str] | None = None,
+        exclude_paths: list[str] | None = None,
         tags: list[str] | None = None,
         custom_tests: list[TestCase] | None = None,
         on_progress: Callable[[TestCase, TestResult], Coroutine[Any, Any, None]] | None = None,
@@ -88,7 +91,7 @@ class TestOrchestrator:
                 spec_path_or_url=spec_path_or_url,
                 enable_browser=enable_browser,
             )
-            planner = TestSuiteGenerator(app)
+            planner = TestSuiteGenerator(app, default_headers=headers)
             tests_to_run = planner.generate_suite()
 
             # AI exploratory test generation
@@ -102,6 +105,33 @@ class TestOrchestrator:
             tag_set = {t.lower() for t in tags}
             tests_to_run = [
                 t for t in tests_to_run if any(tag.lower() in tag_set for tag in t.tags)
+            ]
+
+        # Filter by include_paths
+        if include_paths:
+            import fnmatch
+            filtered = []
+            for t in tests_to_run:
+                for pattern in include_paths:
+                    pattern_clean = pattern.strip()
+                    if fnmatch.fnmatch(t.target, f"*{pattern_clean}*") or any(
+                        fnmatch.fnmatch(s.endpoint or "", f"*{pattern_clean}*") for s in t.steps
+                    ):
+                        filtered.append(t)
+                        break
+            tests_to_run = filtered
+
+        # Filter by exclude_paths
+        if exclude_paths:
+            import fnmatch
+            tests_to_run = [
+                t
+                for t in tests_to_run
+                if not any(
+                    fnmatch.fnmatch(t.target, f"*{p.strip()}*")
+                    or any(fnmatch.fnmatch(s.endpoint or "", f"*{p.strip()}*") for s in t.steps)
+                    for p in exclude_paths
+                )
             ]
 
         # 2. Execute tests concurrently

@@ -108,6 +108,17 @@ def generate_command(
     asyncio.run(_run())
 
 
+def parse_headers(header_list: list[str] | None) -> dict[str, str]:
+    if not header_list:
+        return {}
+    parsed = {}
+    for h in header_list:
+        if ":" in h:
+            k, v = h.split(":", 1)
+            parsed[k.strip()] = v.strip()
+    return parsed
+
+
 @app.command("test")
 def test_command(
     target: Annotated[str, typer.Argument(help="Target application URL or host")],
@@ -115,13 +126,20 @@ def test_command(
     browser: Annotated[bool, typer.Option("--browser", "-b", help="Enable Playwright browser test runner")] = False,
     concurrency: Annotated[int, typer.Option("--concurrency", "-c", help="Concurrent worker count")] = 4,
     ai: Annotated[bool, typer.Option("--ai/--no-ai", help="Enable AI test generation and failure analysis")] = True,
+    header: Annotated[Optional[list[str]], typer.Option("--header", "-H", help="Custom HTTP headers to send (e.g. -H 'Authorization: Bearer token')")] = None,
+    include: Annotated[Optional[list[str]], typer.Option("--include", "-i", help="Filter tests to matching paths (e.g. -i '/api/orders*')")] = None,
+    exclude: Annotated[Optional[list[str]], typer.Option("--exclude", "-e", help="Exclude matching paths from testing (e.g. -e '/api/admin*')")] = None,
     report_dir: Annotated[Path, typer.Option("--report-dir", "-r", help="Directory for JSON and HTML reports")] = Path("./reports"),
     tag: Annotated[Optional[list[str]], typer.Option("--tag", "-t", help="Filter tests by tag")] = None,
 ):
     """Autonomous Test Execution: Discovers, plans, executes concurrently, classifies failures, and generates reports."""
+    parsed_hdrs = parse_headers(header)
+    hdr_info = f" | [dim]Auth/Headers:[/dim] [green]{len(parsed_hdrs)} set[/green]" if parsed_hdrs else ""
+    include_info = f" | [dim]Filter:[/dim] [yellow]{', '.join(include)}[/yellow]" if include else ""
+
     console.print(Panel(
         f"[bold white]Recon AI QA Agent[/bold white]\n"
-        f"[dim]Target:[/dim] [cyan]{target}[/cyan] | [dim]Concurrency:[/dim] [yellow]{concurrency}[/yellow] | [dim]Browser:[/dim] [magenta]{browser}[/magenta] | [dim]AI:[/dim] [green]{ai}[/green]",
+        f"[dim]Target:[/dim] [cyan]{target}[/cyan] | [dim]Concurrency:[/dim] [yellow]{concurrency}[/yellow] | [dim]Browser:[/dim] [magenta]{browser}[/magenta] | [dim]AI:[/dim] [green]{ai}[/green]{hdr_info}{include_info}",
         border_style="cyan"
     ))
 
@@ -141,6 +159,9 @@ def test_command(
             target_url=target,
             spec_path_or_url=spec,
             enable_browser=browser,
+            headers=parsed_hdrs,
+            include_paths=include,
+            exclude_paths=exclude,
             tags=tag,
             on_progress=on_progress,
         )
