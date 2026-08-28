@@ -1,0 +1,27 @@
+services:
+  demo-app:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.demo
+    container_name: recon-demo-app
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD-SHELL", "python -c 'import urllib.request; urllib.request.urlopen(\"http://localhost:8000/api/health\")'"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  recon-agent:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.recon
+    container_name: recon-agent
+    depends_on:
+      demo-app:
+        condition: service_healthy
+    volumes:
+      - ./reports:/app/reports
+    environment:
+      - RECON_LLM_PROVIDER=mock
+    command: ["test", "http://demo-app:8000", "--browser", "--concurrency", "4"]

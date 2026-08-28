@@ -1,0 +1,38 @@
+FROM python:3.12-slim
+
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PIP_NO_CACHE_DIR=1
+
+WORKDIR /app
+
+# Install system dependencies for Playwright Chromium
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    git \
+    libnss3 \
+    libnspr4 \
+    libatk1.0-0 \
+    libatk-bridge2.0-0 \
+    libcups2 \
+    libdrm2 \
+    libxkbcommon0 \
+    libxcomposite1 \
+    libxdamage1 \
+    libxfixes3 \
+    libxrandr2 \
+    libgbm1 \
+    libpango-1.0-0 \
+    libcairo2 \
+    libasound2t64 \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY pyproject.toml README.md ./
+COPY recon/ ./recon/
+COPY apps/ ./apps/
+
+RUN pip install --no-cache-dir .[browser,ai]
+RUN python -m playwright install --with-deps chromium
+
+ENTRYPOINT ["recon"]
+CMD ["--help"]

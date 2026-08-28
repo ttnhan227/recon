@@ -1,0 +1,54 @@
+name: Recon CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  test:
+    name: Test Suite & Autonomous Verification
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install .[browser,ai,dev]
+          python -m playwright install --with-deps chromium
+
+      - name: Run Unit & Integration Tests
+        run: |
+          pytest -v tests/unit tests/integration
+
+      - name: Run System Diagnostics (Doctor)
+        run: |
+          recon doctor
+
+      - name: Launch Demo Application in Background
+        run: |
+          python -m uvicorn recon.demo_app.main:app --host 127.0.0.1 --port 8000 &
+          sleep 3
+
+      - name: Run Autonomous QA Agent against Demo App
+        id: qa_run
+        run: |
+          recon test http://127.0.0.1:8000 --browser --concurrency 4 || echo "QA run completed with intentional defects found (exit code 1)."
+
+      - name: Upload Test Report Artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: recon-qa-reports
+          path: reports/
+          retention-days: 14

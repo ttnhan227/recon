@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Recon Demo Store & App</title>
+    <style>
+        body { font-family: system-ui, sans-serif; background: #0f172a; color: #f8fafc; padding: 2rem; }
+        .container { max-width: 800px; margin: 0 auto; background: #1e293b; padding: 2rem; border-radius: 8px; }
+        h1 { color: #818cf8; margin-bottom: 1rem; }
+        .form-group { margin-bottom: 1rem; }
+        label { display: block; margin-bottom: 0.25rem; font-size: 0.9rem; }
+        input, select { width: 100%; padding: 0.5rem; border-radius: 4px; border: 1px solid #475569; background: #334155; color: white; box-sizing: border-box; }
+        button { background: #6366f1; color: white; border: none; padding: 0.6rem 1.2rem; border-radius: 4px; cursor: pointer; font-weight: bold; margin-right: 0.5rem; }
+        button:hover { background: #4f46e5; }
+        .btn-danger { background: #ef4444; }
+        .btn-danger:hover { background: #dc2626; }
+        .card { border: 1px solid #334155; padding: 1rem; border-radius: 6px; margin-bottom: 1.5rem; }
+        .msg { margin-top: 0.5rem; padding: 0.5rem; border-radius: 4px; display: none; }
+        .msg.error { background: #7f1d1d; color: #fecaca; display: block; }
+        .msg.success { background: #065f46; color: #a7f3d0; display: block; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Recon E-Commerce Target App</h1>
+        <p style="color: #94a3b8; margin-bottom: 1.5rem;">Vulnerable test target with deliberately introduced edge cases.</p>
+
+        <!-- Order Form -->
+        <div class="card">
+            <h3>Place New Order</h3>
+            <form id="orderForm" action="/api/orders" method="POST">
+                <div class="form-group">
+                    <label for="itemId">Item SKU</label>
+                    <input type="text" id="itemId" name="item_id" value="ITEM-100" required>
+                </div>
+                <div class="form-group">
+                    <label for="quantity">Quantity</label>
+                    <input type="number" id="quantity" name="quantity" value="1" min="1" required>
+                </div>
+                <div class="form-group">
+                    <label for="currency">Currency (Optional)</label>
+                    <input type="text" id="currency" name="currency" placeholder="USD, EUR (Leaving empty triggers 500 bug)">
+                </div>
+                <button type="submit" id="btnSubmitOrder">Submit Order</button>
+            </form>
+            <div id="orderResult" class="msg"></div>
+        </div>
+
+        <!-- Login Form (With Broken JS Handler) -->
+        <div class="card">
+            <h3>User Login (Broken Event Handler)</h3>
+            <form id="loginForm">
+                <div class="form-group">
+                    <label for="loginEmail">Email</label>
+                    <input type="email" id="loginEmail" name="email" value="admin@example.com">
+                </div>
+                <div class="form-group">
+                    <label for="loginPassword">Password</label>
+                    <input type="password" id="loginPassword" name="password" value="secret">
+                </div>
+                <button type="button" id="btnLogin">Login</button>
+            </form>
+        </div>
+
+        <!-- Console Error Trigger -->
+        <div class="card">
+            <h3>Interactive Bug Triggers</h3>
+            <button type="button" id="btnCrashJS" class="btn-danger">Trigger JS Console Error</button>
+            <a href="/api/admin/secrets" style="color: #38bdf8; margin-left: 1rem;">View Unprotected Admin Secrets</a>
+        </div>
+    </div>
+
+    <script>
+        // Order Form Handler
+        document.getElementById('orderForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const itemId = document.getElementById('itemId').value;
+            const quantity = parseInt(document.getElementById('quantity').value, 10);
+            const currency = document.getElementById('currency').value.trim() || undefined;
+
+            const resDiv = document.getElementById('orderResult');
+            try {
+                const resp = await fetch('/api/orders', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ item_id: itemId, quantity: quantity, currency: currency })
+                });
+                const data = await resp.json();
+                if (resp.ok) {
+                    resDiv.className = 'msg success';
+                    resDiv.textContent = 'Order Created: ' + data.order_id;
+                } else {
+                    resDiv.className = 'msg error';
+                    resDiv.textContent = 'Error ' + resp.status + ': ' + (data.detail || 'Failed');
+                }
+            } catch (err) {
+                resDiv.className = 'msg error';
+                resDiv.textContent = 'Network Failure: ' + err.message;
+            }
+        });
+
+        // Intentional Login Bug: Accesses undefined property causing Uncaught TypeError
+        document.getElementById('btnLogin').addEventListener('click', () => {
+            const session = undefined;
+            // Bug: Cannot read properties of undefined (reading 'token')
+            const token = session.token;
+            window.location.href = '/dashboard';
+        });
+
+        // Console Error Trigger
+        document.getElementById('btnCrashJS').addEventListener('click', () => {
+            console.error("Uncaught ReferenceError: analyticsTracker is not defined at HTMLButtonElement.onclick");
+        });
+    </script>
+</body>
+</html>
