@@ -1,10 +1,11 @@
 # Recon: AI QA Agent — Autonomous Testing & Failure Analysis Platform
 
-[![CI/CD](https://github.com/recon-qa/recon/actions/workflows/ci.yml/badge.svg)](https://github.com/recon-qa/recon/actions/workflows/ci.yml)
+[![PyPI Version](https://img.shields.io/pypi/v/recon-qa.svg)](https://pypi.org/project/recon-qa/)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
+[![GitHub](https://img.shields.io/badge/GitHub-ttnhan227%2Frecon-black?logo=github)](https://github.com/ttnhan227/recon)
 
-> **Recon** (`qa-agent`) is an autonomous, developer-first testing platform designed to inspect applications, plan multi-category test suites, execute HTTP & Playwright browser tests concurrently, deterministically classify failures, perform AI-assisted root-cause analysis (RCA), and generate actionable reports.
+> **Recon** (`recon-qa` / `recon`) is an autonomous, developer-first testing platform designed to inspect applications, plan multi-category test suites, execute HTTP & Playwright browser tests concurrently, deterministically classify failures, perform AI-assisted root-cause analysis (RCA), and generate actionable reports.
 
 ---
 
@@ -85,15 +86,19 @@ flowchart TD
 
 ### Installation
 
+#### Option 1: Install from PyPI (Recommended)
 ```bash
-# Clone repository
-git clone https://github.com/recon-qa/recon.git
+pip install recon-qa[browser,ai]
+
+# Install Playwright browser engine
+python -m playwright install chromium
+```
+
+#### Option 2: Clone from GitHub (Development)
+```bash
+git clone https://github.com/ttnhan227/recon.git
 cd recon
-
-# Install in editable mode with browser and AI extras
 pip install -e .[browser,ai]
-
-# Install Playwright browser dependencies
 python -m playwright install chromium
 ```
 
