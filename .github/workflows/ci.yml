@@ -24,7 +24,7 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install .[browser,ai,dev]
+          pip install -e ".[browser,dev]"
           python -m playwright install --with-deps chromium
 
       - name: Run Unit & Integration Tests
@@ -50,5 +50,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: recon-qa-reports
-          path: reports/
+          path: ~/.recon/reports/
           retention-days: 14
