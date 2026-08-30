@@ -35,10 +35,13 @@ class BrowserEvidenceCollector:
 
     def handle_request_failed(self, req: Any) -> None:
         """Playwright requestfailed event callback."""
-        url = req.url
-        method = req.method
-        failure_text = req.failure if hasattr(req, "failure") else "Request failed"
-        status_code = req.response.status if hasattr(req, "response") and req.response else None
+        failure_text = str(req.failure) if hasattr(req, "failure") else "Request failed"
+        status_code = None
+        try:
+            res = req.response() if callable(getattr(req, "response", None)) else None
+            status_code = res.status if res else None
+        except Exception:
+            status_code = None
         self.network_errors.append(
             NetworkError(
                 url=url,

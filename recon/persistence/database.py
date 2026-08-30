@@ -16,7 +16,10 @@ class DatabaseManager:
     """Manages async database connections and migrations."""
 
     def __init__(self, db_url: str | None = None):
-        self.db_url = db_url or settings.database_url
+        raw_url = db_url or settings.database_url
+        if raw_url.startswith("sqlite"):
+            raw_url = raw_url.replace("\\", "/")
+        self.db_url = raw_url
         self.engine = create_async_engine(self.db_url, echo=False)
         self.session_factory = async_sessionmaker(
             bind=self.engine,

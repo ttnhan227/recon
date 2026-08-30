@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import abc
+import asyncio
 import json
 import os
 from typing import Any
@@ -19,10 +20,39 @@ class LLMProvider(abc.ABC):
         pass
 
 
+async def _post_with_retry(
+    client: Any,
+    url: str,
+    headers: dict[str, str],
+    json_data: dict[str, Any],
+    max_retries: int = 3,
+) -> Any:
+    """Sends HTTP POST request with automatic exponential retry backoff on 429 Too Many Requests."""
+    delay = 2.0
+    for attempt in range(max_retries + 1):
+        resp = await client.post(url, headers=headers, json=json_data)
+        if resp.status_code == 429 and attempt < max_retries:
+            logger.warning(
+                f"Rate limit (429) received from LLM API. Backing off for {delay:.1f}s (attempt {attempt + 1}/{max_retries})..."
+            )
+            await asyncio.sleep(delay)
+            delay *= 2
+            continue
+        resp.raise_for_status()
+        return resp
+    return resp
+
+
 class MockProvider(LLMProvider):
     """Deterministic offline LLM simulation provider. Useful for offline runs, CI, and testing."""
 
+    def __init__(self, mock_responses: list[str] | None = None):
+        self.mock_responses = list(mock_responses) if mock_responses else []
+
     async def complete(self, prompt: str, system_prompt: str | None = None) -> str:
+        if self.mock_responses:
+            return self.mock_responses.pop(0)
+
         prompt_lower = prompt.lower()
 
         # Check if this is a test generation request
@@ -150,8 +180,7 @@ class GeminiProvider(LLMProvider):
 
         async with httpx.AsyncClient(timeout=30.0) as client:
             try:
-                resp = await client.post(url, headers=headers, json=payload)
-                resp.raise_for_status()
+                resp = await _post_with_retry(client, url, headers=headers, json_data=payload)
                 data = resp.json()
                 candidates = data.get("candidates", [])
                 if not candidates:
@@ -191,8 +220,7 @@ class OpenAIProvider(LLMProvider):
 
         async with httpx.AsyncClient(timeout=30.0) as client:
             try:
-                resp = await client.post("https://api.openai.com/v1/chat/completions", headers=headers, json=payload)
-                resp.raise_for_status()
+                resp = await _post_with_retry(client, "https://api.openai.com/v1/chat/completions", headers=headers, json_data=payload)
                 data = resp.json()
                 return data["choices"][0]["message"]["content"] or ""
             except Exception as e:
@@ -228,8 +256,7 @@ class MistralProvider(LLMProvider):
 
         async with httpx.AsyncClient(timeout=30.0) as client:
             try:
-                resp = await client.post("https://api.mistral.ai/v1/chat/completions", headers=headers, json=payload)
-                resp.raise_for_status()
+                resp = await _post_with_retry(client, "https://api.mistral.ai/v1/chat/completions", headers=headers, json_data=payload)
                 data = resp.json()
                 return data["choices"][0]["message"]["content"] or ""
             except Exception as e:
@@ -264,8 +291,7 @@ class AnthropicProvider(LLMProvider):
 
         async with httpx.AsyncClient(timeout=30.0) as client:
             try:
-                resp = await client.post("https://api.anthropic.com/v1/messages", headers=headers, json=payload)
-                resp.raise_for_status()
+                resp = await _post_with_retry(client, "https://api.anthropic.com/v1/messages", headers=headers, json_data=payload)
                 data = resp.json()
                 content = data.get("content", [])
                 return content[0].get("text", "") if content else ""
@@ -301,8 +327,7 @@ class OpenAICompatibleProvider(LLMProvider):
 
         async with httpx.AsyncClient(timeout=30.0) as client:
             try:
-                resp = await client.post(endpoint, headers=headers, json=payload)
-                resp.raise_for_status()
+                resp = await _post_with_retry(client, endpoint, headers=headers, json_data=payload)
                 data = resp.json()
                 return data["choices"][0]["message"]["content"] or ""
             except Exception as e:

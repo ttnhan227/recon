@@ -12,9 +12,9 @@ from rich.table import Table
 
 from recon.apps.cli.config_cli import config_app, list_providers, set_key, use_provider
 from recon.apps.cli.doctor import run_doctor
-from recon.common.config import settings
+from recon.common.config import get_project_slug, settings
 from recon.common.logging import console, logger
-from recon.common.models import TestCase, TestResult, TestStatus
+from recon.common.models import TestCase, TestCategory, TestResult, TestStatus, TestStep, TestType
 from recon.discovery.endpoint_detector import discover_application
 from recon.orchestration.orchestrator import TestOrchestrator
 from recon.persistence.database import DatabaseManager
@@ -33,7 +33,6 @@ app.add_typer(config_app, name="config")
 app.command("set-key", help="Shortcut to interactively set/update an AI API key.")(set_key)
 app.command("use", help="Shortcut to switch the active AI provider.")(use_provider)
 app.command("providers", help="Shortcut to list all supported AI providers and active status.")(list_providers)
-
 
 
 @app.command("scan")
@@ -72,12 +71,13 @@ def scan_command(
             p_table.add_column("Console Errors", justify="center")
 
             for page in discovered.pages:
+                err_count = len(page.console_logs)
                 p_table.add_row(
                     page.url,
                     page.title or "-",
                     str(len(page.forms)),
-                    str(len(page.buttons)),
-                    str(len(page.console_errors)),
+                    str(len(page.interactive_elements)),
+                    f"[red]{err_count}[/red]" if err_count > 0 else "[green]0[/green]",
                 )
             console.print(p_table)
 
@@ -86,16 +86,16 @@ def scan_command(
 
 @app.command("generate")
 def generate_command(
-    target: Annotated[str, typer.Argument(help="Target URL")],
-    spec: Annotated[Optional[str], typer.Option("--spec", "-s", help="OpenAPI spec URL or file")] = None,
-    browser: Annotated[bool, typer.Option("--browser", "-b", help="Enable browser discovery")] = False,
-    output: Annotated[Path, typer.Option("--output", "-o", help="Output file for generated tests")] = Path("generated_tests.json"),
+    target: Annotated[str, typer.Argument(help="Target URL or host")],
+    spec: Annotated[Optional[str], typer.Option("--spec", "-s", help="Path or URL to OpenAPI spec")] = None,
+    output: Annotated[Path, typer.Option("--output", "-o", help="Output JSON path for generated test suite")] = Path("test_suite.json"),
+    browser: Annotated[bool, typer.Option("--browser", "-b", help="Enable browser crawling")] = False,
 ):
-    """Generates a structured test suite (Happy path, boundary, negative, validation, auth) without executing."""
-    console.print(f"[bold cyan]Generating test plan for:[/bold cyan] {target}")
+    """Plans test suite including happy-path, boundary fuzzing, negative validation, and security probes."""
+    console.print(f"[bold cyan]Planning test suite for:[/bold cyan] {target}")
 
     async def _run():
-        with console.status("[bold green]Planning test cases..."):
+        with console.status("[bold green]Discovering endpoints and generating test suite..."):
             app_meta = await discover_application(target, spec_path_or_url=spec, enable_browser=browser)
             planner = TestSuiteGenerator(app_meta)
             tests = planner.generate_suite()
@@ -129,24 +129,77 @@ def test_command(
     header: Annotated[Optional[list[str]], typer.Option("--header", "-H", help="Custom HTTP headers to send (e.g. -H 'Authorization: Bearer token')")] = None,
     include: Annotated[Optional[list[str]], typer.Option("--include", "-i", help="Filter tests to matching paths (e.g. -i '/api/orders*')")] = None,
     exclude: Annotated[Optional[list[str]], typer.Option("--exclude", "-e", help="Exclude matching paths from testing (e.g. -e '/api/admin*')")] = None,
-    report_dir: Annotated[Path, typer.Option("--report-dir", "-r", help="Directory for JSON and HTML reports")] = Path("./reports"),
+    report_dir: Annotated[Optional[Path], typer.Option("--report-dir", "-r", help="Directory for JSON and HTML reports")] = None,
+    failed_only: Annotated[bool, typer.Option("--failed-only", "-f", help="Re-test only previously failing test cases")] = False,
     tag: Annotated[Optional[list[str]], typer.Option("--tag", "-t", help="Filter tests by tag")] = None,
 ):
     """Autonomous Test Execution: Discovers, plans, executes concurrently, classifies failures, and generates reports."""
+    project_slug = get_project_slug(target)
+    actual_report_dir = (report_dir or (settings.reports_dir / project_slug)).resolve()
     parsed_hdrs = parse_headers(header)
     hdr_info = f" | [dim]Auth/Headers:[/dim] [green]{len(parsed_hdrs)} set[/green]" if parsed_hdrs else ""
     include_info = f" | [dim]Filter:[/dim] [yellow]{', '.join(include)}[/yellow]" if include else ""
+    failed_info = " | [bold magenta]Failed-Only Mode[/bold magenta]" if failed_only else ""
 
     console.print(Panel(
-        f"[bold white]Recon AI QA Agent[/bold white]\n"
-        f"[dim]Target:[/dim] [cyan]{target}[/cyan] | [dim]Concurrency:[/dim] [yellow]{concurrency}[/yellow] | [dim]Browser:[/dim] [magenta]{browser}[/magenta] | [dim]AI:[/dim] [green]{ai}[/green]{hdr_info}{include_info}",
+        f"[bold white]Recon AI QA Agent[/bold white] (Project: [cyan]{project_slug}[/cyan])\n"
+        f"[dim]Target:[/dim] [cyan]{target}[/cyan] | [dim]Concurrency:[/dim] [yellow]{concurrency}[/yellow] | [dim]Browser:[/dim] [magenta]{browser}[/magenta] | [dim]AI:[/dim] [green]{ai}[/green]{hdr_info}{include_info}{failed_info}",
         border_style="cyan"
     ))
 
     async def _run():
+        custom_tests_to_run: list[TestCase] | None = None
+
+        if failed_only:
+            # Load previous failing test results
+            latest_json = actual_report_dir / "latest.json"
+            if not latest_json.exists():
+                latest_json = Path("./reports/latest.json")
+
+            if not latest_json.exists():
+                console.print(f"[yellow]No previous test results found in {actual_report_dir}. Running full suite...[/yellow]")
+            else:
+                data = json.loads(latest_json.read_text(encoding="utf-8"))
+                results_data = data.get("results", data) if isinstance(data, dict) else data
+                failing_results = [
+                    TestResult.model_validate(r) for r in results_data
+                    if r.get("status") in (TestStatus.FAILED.value, TestStatus.ERROR.value)
+                ]
+
+                if not failing_results:
+                    console.print("[bold green]✓ No previously failed tests found for this project! All tests were passing.[/bold green]")
+                    return 0
+
+                console.print(f"[bold cyan]Incremental Re-Test: Running {len(failing_results)} previously failed test(s)...[/bold cyan]")
+                custom_tests_to_run = []
+                for fr in failing_results:
+                    # Reconstruct test cases from trace or target
+                    tr = fr.failure_evidence.http_traces[0] if (fr.failure_evidence and fr.failure_evidence.http_traces) else None
+                    req_target = tr.request_url if tr else target
+                    req_method = tr.request_method if tr else "GET"
+                    custom_tests_to_run.append(
+                        TestCase(
+                            id=fr.test_id,
+                            name=fr.test_name,
+                            category=fr.category,
+                            test_type=fr.test_type,
+                            target=req_target,
+                            steps=[
+                                TestStep(
+                                    name=f"{req_method} {req_target}",
+                                    step_type="http_request",
+                                    method=req_method,
+                                    endpoint=req_target,
+                                    body=tr.request_body if tr else None,
+                                    headers=tr.request_headers if tr else parsed_hdrs,
+                                )
+                            ],
+                        )
+                    )
+
         orchestrator = TestOrchestrator(
             concurrency=concurrency,
-            output_dir=report_dir,
+            output_dir=actual_report_dir,
             enable_ai=ai,
         )
 
@@ -163,6 +216,7 @@ def test_command(
             include_paths=include,
             exclude_paths=exclude,
             tags=tag,
+            custom_tests=custom_tests_to_run,
             on_progress=on_progress,
         )
 
@@ -178,8 +232,8 @@ def test_command(
             f"  Failed      : [bold red]{summary.failed + summary.errors}[/bold red]\n"
             f"  Pass Rate   : [bold {summary_panel_color}]{pass_rate}%[/bold {summary_panel_color}]\n"
             f"  Duration    : {summary.duration_seconds:.2f}s\n"
-            f"  HTML Report : [cyan]{report_dir}/run-{summary.run_id}/report.html[/cyan]\n"
-            f"  Latest Link : [cyan]{report_dir}/latest.html[/cyan]",
+            f"  HTML Report : [cyan]{actual_report_dir}/run-{summary.run_id}/report.html[/cyan]\n"
+            f"  Latest Link : [cyan]{actual_report_dir}/latest.html[/cyan]",
             title="[bold]Recon Test Run Completed[/bold]",
             border_style=summary_panel_color,
         ))
@@ -223,7 +277,9 @@ def analyze_command(
     async def _run():
         path = Path(target_or_run_id)
         if target_or_run_id == "latest" and not path.exists():
-            path = Path("./reports/latest.json")
+            project_slug = get_project_slug()
+            central_latest = settings.reports_dir / project_slug / "latest.json"
+            path = central_latest if central_latest.exists() else Path("./reports/latest.json")
 
         results: list[TestResult] = []
 
@@ -263,26 +319,76 @@ def analyze_command(
     asyncio.run(_run())
 
 
+@app.command("fix")
+def fix_command(
+    target_or_run_id: Annotated[str, typer.Argument(help="Run ID or path to results.json")] = "latest",
+    repo: Annotated[Optional[Path], typer.Option("--repo", "-r", help="Path to target application source code repository")] = None,
+    test_id: Annotated[Optional[str], typer.Option("--test-id", "-t", help="Specific failing test ID to fix (e.g. API-015)")] = None,
+    apply: Annotated[bool, typer.Option("--apply", "-a", help="Automatically apply patches without interactive confirmation")] = False,
+    verify: Annotated[bool, typer.Option("--verify", "-v", help="Auto-verify the fix by re-running test against target")] = True,
+):
+    """Autonomous Self-Healing: Locates source code for test failures, generates Unified Diff patches, and repairs code."""
+    from recon.healing.engine import SelfHealingEngine
+
+    async def _run():
+        engine = SelfHealingEngine(repo_dir=repo)
+        results = await engine.load_results(target_or_run_id)
+        if not results:
+            console.print(f"[red]No test results found for '{target_or_run_id}'[/red]")
+            raise typer.Exit(code=1)
+
+        fixed = await engine.heal_failures(
+            results=results,
+            test_id_filter=test_id,
+            auto_apply=apply,
+            auto_verify=verify,
+        )
+        raise typer.Exit(code=0 if fixed > 0 else 1)
+
+    asyncio.run(_run())
+
+
 @app.command("report")
 def report_command(
     target_or_run_id: Annotated[str, typer.Argument(help="Run ID or path to results.json/report.html")] = "latest",
-    output_dir: Annotated[Path, typer.Option("--report-dir", "-r")] = Path("./reports"),
+    report_dir: Annotated[Optional[Path], typer.Option("--report-dir", "-r", help="Custom report directory")] = None,
 ):
-    """Views or opens the latest HTML report."""
+    """Views or opens the latest HTML report for the active project."""
     target_path = Path(target_or_run_id)
     target_html: Path | None = None
 
+    project_slug = get_project_slug()
+    search_dirs = []
+    if report_dir:
+        search_dirs.append(report_dir)
+    search_dirs.extend([
+        settings.reports_dir / project_slug,
+        settings.reports_dir,
+        Path("./reports"),
+    ])
+
     if target_path.exists() and target_path.suffix == ".html":
         target_html = target_path
-    elif (output_dir / "latest.html").exists() and target_or_run_id == "latest":
-        target_html = output_dir / "latest.html"
-    elif (output_dir / f"run-{target_or_run_id}" / "report.html").exists():
-        target_html = output_dir / f"run-{target_or_run_id}" / "report.html"
+    elif target_or_run_id == "latest":
+        for s_dir in search_dirs:
+            if (s_dir / "latest.html").exists():
+                target_html = s_dir / "latest.html"
+                break
     else:
-        # Fallback: check most recently modified html file in output_dir
-        html_files = list(output_dir.glob("**/*.html"))
-        if html_files:
-            target_html = max(html_files, key=lambda p: p.stat().st_mtime)
+        for s_dir in search_dirs:
+            candidate = s_dir / f"run-{target_or_run_id}" / "report.html"
+            if candidate.exists():
+                target_html = candidate
+                break
+
+    if not target_html:
+        # Fallback: check most recently modified html file across all search directories
+        for s_dir in search_dirs:
+            if s_dir.exists():
+                html_files = list(s_dir.glob("**/*.html"))
+                if html_files:
+                    target_html = max(html_files, key=lambda p: p.stat().st_mtime)
+                    break
 
     if target_html and target_html.exists():
         console.print(f"[green]Report available at: [bold]{target_html.resolve()}[/bold][/green]")
@@ -292,7 +398,7 @@ def report_command(
         except Exception:
             pass
     else:
-        console.print(f"[yellow]No existing report found in {output_dir}. Run `recon test <target>` first.[/yellow]")
+        console.print(f"[yellow]No existing report found for project '{project_slug}'. Run `recon test <target>` first.[/yellow]")
 
 
 @app.command("doctor")

@@ -1,13 +1,13 @@
-name: Publish Recon to PyPI & GitHub Release
+name: CI & Automated PyPI Release
 
 on:
   push:
-    tags:
-      - 'v*' # Trigger on version tags, e.g. v0.1.2, v0.2.0
-  workflow_dispatch: # Allows manual trigger from GitHub Actions tab
+    branches:
+      - main # Triggers automatically whenever you push to main in GitHub Desktop
+  workflow_dispatch:
 
 permissions:
-  contents: write # Needed to create GitHub Releases
+  contents: write # Needed to create tags and GitHub Releases
   id-token: write
 
 jobs:
@@ -36,38 +36,63 @@ jobs:
           pytest
 
   publish:
-    name: Build, Publish to PyPI & Create GitHub Release
+    name: Check Version & Auto-Publish
     needs: test
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0 # Full history for auto changelog generation
+          fetch-depth: 0
 
       - name: Set up Python 3.12
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
 
-      - name: Install build dependencies
+      - name: Extract current version from pyproject.toml
+        id: get_version
+        run: |
+          VERSION=$(python -c "import tomllib; print(tomllib.load(open('pyproject.toml', 'rb'))['project']['version'])")
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+          echo "tag_name=v$VERSION" >> $GITHUB_ENV
+
+      - name: Check if version is already published on PyPI
+        id: check_pypi
+        run: |
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://pypi.org/pypi/recon-qa/${{ env.VERSION }}/json)
+          if [ "$STATUS" = "200" ]; then
+            echo "Version ${{ env.VERSION }} already exists on PyPI. Skipping publish."
+            echo "should_publish=false" >> $GITHUB_ENV
+          else
+            echo "New version ${{ env.VERSION }} detected! Proceeding to publish."
+            echo "should_publish=true" >> $GITHUB_ENV
+          fi
+
+      - name: Install build tools
+        if: env.should_publish == 'true'
         run: |
           python -m pip install --upgrade pip
           pip install build
 
       - name: Build binary wheel and source tarball
+        if: env.should_publish == 'true'
         run: |
           python -m build
 
-      - name: Create GitHub Release with Auto-Generated Notes
+      - name: Create Git Tag & GitHub Release
+        if: env.should_publish == 'true'
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ env.tag_name }}
+          name: Release ${{ env.tag_name }}
           files: dist/*
           generate_release_notes: true
           draft: false
           prerelease: false
 
-      - name: Publish package distribution to PyPI
+      - name: Publish package to PyPI
+        if: env.should_publish == 'true'
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           password: ${{ secrets.PYPI_API_TOKEN }}

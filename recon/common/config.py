@@ -2,8 +2,45 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+from urllib.parse import urlparse
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+def get_recon_home() -> Path:
+    """Returns ~/.recon base directory and ensures it exists."""
+    recon_home = Path.home() / ".recon"
+    recon_home.mkdir(parents=True, exist_ok=True)
+    return recon_home
+
+
+def get_project_slug(target: str | None = None, cwd: Path | None = None) -> str:
+    """Derives a clean project slug from current working directory or target URL."""
+    generic_names = {"projects", "workspace", "workspaces", "src", "app", "server", "client", "code"}
+
+    # 1. Check current working directory or explicit cwd first
+    curr = (cwd or Path.cwd()).resolve()
+    while curr and curr.name:
+        if curr.name.lower() not in generic_names:
+            clean = "".join(c if c.isalnum() or c in "-_" else "_" for c in curr.name.lower()).strip("_")
+            if clean:
+                return clean
+        if curr.parent == curr:
+            break
+        curr = curr.parent
+
+    # 2. If working directory was generic, fallback to target URL
+    if target:
+        try:
+            parsed = urlparse(target)
+            host = (parsed.hostname or "").replace(".", "_")
+            port = f"_{parsed.port}" if parsed.port else ""
+            if host:
+                return f"{host}{port}".lower()
+        except Exception:
+            pass
+
+    return "default"
 
 
 class ReconSettings(BaseSettings):
@@ -16,7 +53,7 @@ class ReconSettings(BaseSettings):
 
     # General
     app_name: str = "Recon QA Agent"
-    version: str = "0.1.1"
+    version: str = "0.1.2"
     log_level: str = "INFO"
     json_logs: bool = False
 
@@ -26,9 +63,9 @@ class ReconSettings(BaseSettings):
     default_retries: int = Field(default=0, ge=0, le=5)
     max_response_size_bytes: int = Field(default=5 * 1024 * 1024)  # 5 MB
 
-    # Paths & Persistence
-    reports_dir: Path = Field(default=Path("./reports"))
-    database_url: str = Field(default="sqlite+aiosqlite:///./recon.db")
+    # Paths & Persistence: Centralized in ~/.recon by default
+    reports_dir: Path = Field(default_factory=lambda: get_recon_home() / "reports")
+    database_url: str = Field(default_factory=lambda: f"sqlite+aiosqlite:///{get_recon_home().as_posix()}/recon.db")
     redis_url: str | None = None
 
     # Security
