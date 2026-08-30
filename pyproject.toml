@@ -33,10 +33,6 @@ dependencies = [
 browser = [
     "playwright>=1.44.0",
 ]
-ai = [
-    "google-genai>=1.0.0",
-    "openai>=1.30.0",
-]
 dev = [
     "ruff>=0.4.0",
     "mypy>=1.10.0",

@@ -265,20 +265,34 @@ def analyze_command(
 
 @app.command("report")
 def report_command(
-    target_or_run_id: Annotated[str, typer.Argument(help="Run ID or path to results.json")] = "latest",
+    target_or_run_id: Annotated[str, typer.Argument(help="Run ID or path to results.json/report.html")] = "latest",
     output_dir: Annotated[Path, typer.Option("--report-dir", "-r")] = Path("./reports"),
 ):
     """Views or opens the latest HTML report."""
-    latest_html = output_dir / "latest.html"
-    if latest_html.exists():
-        console.print(f"[green]Latest report available at: [bold]{latest_html.resolve()}[/bold][/green]")
+    target_path = Path(target_or_run_id)
+    target_html: Path | None = None
+
+    if target_path.exists() and target_path.suffix == ".html":
+        target_html = target_path
+    elif (output_dir / "latest.html").exists() and target_or_run_id == "latest":
+        target_html = output_dir / "latest.html"
+    elif (output_dir / f"run-{target_or_run_id}" / "report.html").exists():
+        target_html = output_dir / f"run-{target_or_run_id}" / "report.html"
+    else:
+        # Fallback: check most recently modified html file in output_dir
+        html_files = list(output_dir.glob("**/*.html"))
+        if html_files:
+            target_html = max(html_files, key=lambda p: p.stat().st_mtime)
+
+    if target_html and target_html.exists():
+        console.print(f"[green]Report available at: [bold]{target_html.resolve()}[/bold][/green]")
         import webbrowser
         try:
-            webbrowser.open(latest_html.resolve().as_uri())
+            webbrowser.open(target_html.resolve().as_uri())
         except Exception:
             pass
     else:
-        console.print(f"[yellow]No existing report found at {latest_html}. Run `recon test <target>` first.[/yellow]")
+        console.print(f"[yellow]No existing report found in {output_dir}. Run `recon test <target>` first.[/yellow]")
 
 
 @app.command("doctor")

@@ -114,7 +114,7 @@ class MockProvider(LLMProvider):
 
 
 class GeminiProvider(LLMProvider):
-    """Google Gemini LLM provider using google-genai SDK."""
+    """Google Gemini LLM provider using REST API with httpx."""
 
     def __init__(self, api_key: str | None = None, model: str = "gemini-2.5-flash"):
         self.api_key = api_key or settings.gemini_api_key
@@ -124,23 +124,46 @@ class GeminiProvider(LLMProvider):
         if not self.api_key:
             raise LLMProviderError("GEMINI_API_KEY is not set.")
 
-        try:
-            from google import genai
-            client = genai.Client(api_key=self.api_key)
-            full_prompt = f"{system_prompt}\n\n{prompt}" if system_prompt else prompt
-            response = await client.aio.models.generate_content(
-                model=self.model,
-                contents=full_prompt,
-            )
-            return response.text or ""
-        except ImportError:
-            raise LLMProviderError("google-genai package is not installed. Install with `pip install google-genai`.")
-        except Exception as e:
-            raise LLMProviderError(f"Gemini API request failed: {e}") from e
+        import httpx
+
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{self.model}:generateContent"
+        headers = {
+            "Content-Type": "application/json",
+            "x-goog-api-key": self.api_key,
+        }
+
+        payload: dict[str, Any] = {
+            "contents": [
+                {
+                    "role": "user",
+                    "parts": [{"text": prompt}],
+                }
+            ],
+            "generationConfig": {
+                "temperature": settings.llm_temperature,
+            },
+        }
+        if system_prompt:
+            payload["systemInstruction"] = {
+                "parts": [{"text": system_prompt}],
+            }
+
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            try:
+                resp = await client.post(url, headers=headers, json=payload)
+                resp.raise_for_status()
+                data = resp.json()
+                candidates = data.get("candidates", [])
+                if not candidates:
+                    return ""
+                parts = candidates[0].get("content", {}).get("parts", [])
+                return parts[0].get("text", "") if parts else ""
+            except Exception as e:
+                raise LLMProviderError(f"Gemini API request failed: {e}") from e
 
 
 class OpenAIProvider(LLMProvider):
-    """OpenAI provider using openai SDK."""
+    """OpenAI provider using REST API with httpx."""
 
     def __init__(self, api_key: str | None = None, model: str = "gpt-4o-mini"):
         self.api_key = api_key or settings.openai_api_key
@@ -150,24 +173,30 @@ class OpenAIProvider(LLMProvider):
         if not self.api_key:
             raise LLMProviderError("OPENAI_API_KEY is not set.")
 
-        try:
-            import openai
-            client = openai.AsyncOpenAI(api_key=self.api_key)
-            messages = []
-            if system_prompt:
-                messages.append({"role": "system", "content": system_prompt})
-            messages.append({"role": "user", "content": prompt})
+        import httpx
+        messages = []
+        if system_prompt:
+            messages.append({"role": "system", "content": system_prompt})
+        messages.append({"role": "user", "content": prompt})
 
-            resp = await client.chat.completions.create(
-                model=self.model,
-                messages=messages,
-                temperature=settings.llm_temperature,
-            )
-            return resp.choices[0].message.content or ""
-        except ImportError:
-            raise LLMProviderError("openai package is not installed. Install with `pip install openai`.")
-        except Exception as e:
-            raise LLMProviderError(f"OpenAI API request failed: {e}") from e
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json",
+        }
+        payload = {
+            "model": self.model,
+            "messages": messages,
+            "temperature": settings.llm_temperature,
+        }
+
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            try:
+                resp = await client.post("https://api.openai.com/v1/chat/completions", headers=headers, json=payload)
+                resp.raise_for_status()
+                data = resp.json()
+                return data["choices"][0]["message"]["content"] or ""
+            except Exception as e:
+                raise LLMProviderError(f"OpenAI API request failed: {e}") from e
 
 
 class MistralProvider(LLMProvider):

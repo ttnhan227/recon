@@ -83,11 +83,15 @@ class AIFailureAnalyzer:
 
         try:
             raw_response = await self.provider.complete(prompt, system_prompt=SYSTEM_PROMPT)
-            # Clean markdown code blocks if LLM included them
             clean_json = raw_response.strip()
-            if clean_json.startswith("```"):
-                clean_json = re.sub(r"^```(?:json)?\n?", "", clean_json)
-                clean_json = re.sub(r"\n?```$", "", clean_json)
+            if "```" in clean_json:
+                match = re.search(r"```(?:json)?\s*([\s\S]*?)\s*```", clean_json)
+                if match:
+                    clean_json = match.group(1)
+
+            json_match = re.search(r"\{[\s\S]*\}", clean_json)
+            if json_match:
+                clean_json = json_match.group(0)
 
             data = json.loads(clean_json)
 

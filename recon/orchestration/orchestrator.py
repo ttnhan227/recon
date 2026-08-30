@@ -147,9 +147,10 @@ class TestOrchestrator:
         logger.info(f"Executing {len(tests_to_run)} tests with concurrency={self.concurrency}")
         results = await worker_pool.execute_suite(tests_to_run)
 
-        # 3. Classify Failures & Run AI Root Cause Analysis
+        # 3. Classify Failures & Run Root Cause Analysis
         failure_breakdown: dict[str, int] = {}
         category_breakdown: dict[str, dict[str, int]] = {}
+        failed_items: list[tuple[TestResult, TestCase | None]] = []
 
         for res in results:
             cat_name = res.category.value
@@ -166,14 +167,35 @@ class TestOrchestrator:
                 fail_key = classified_cat.value
                 failure_breakdown[fail_key] = failure_breakdown.get(fail_key, 0) + 1
 
-                # AI / Deterministic Root Cause Analysis
+                # Deterministic baseline analysis immediately for all failed tests
                 orig_test = test_map.get(res.test_id)
-                if self.enable_ai:
-                    res.failure_analysis = await self.ai_analyzer.analyze_failure(res, orig_test)
-                else:
-                    res.failure_analysis = RootCauseAnalyzer.analyze(res, orig_test)
+                res.failure_analysis = RootCauseAnalyzer.analyze(res, orig_test)
+                failed_items.append((res, orig_test))
             else:
                 category_breakdown[cat_name]["passed"] += 1
+
+        # Deep AI RCA on sampled distinct failures concurrently (capped at 5 to ensure fast execution)
+        if self.enable_ai and failed_items:
+            seen_signatures: set[str] = set()
+            sampled: list[tuple[TestResult, TestCase | None]] = []
+
+            for res, orig_test in failed_items:
+                cat_val = res.failure_evidence.failure_category.value if res.failure_evidence else "UNKNOWN"
+                target_str = orig_test.target if orig_test else res.test_name
+                sig = f"{cat_val}:{target_str}"
+                if sig not in seen_signatures or len(sampled) < 3:
+                    seen_signatures.add(sig)
+                    sampled.append((res, orig_test))
+                if len(sampled) >= 5:
+                    break
+
+            async def _run_ai_rca(r: TestResult, t: TestCase | None):
+                try:
+                    r.failure_analysis = await self.ai_analyzer.analyze_failure(r, t)
+                except Exception as e:
+                    logger.debug(f"AI RCA failed for {r.test_id}: {e}")
+
+            await asyncio.gather(*[_run_ai_rca(r, t) for r, t in sampled])
 
         duration_seconds = round(time.perf_counter() - start_time, 2)
         completed_at = datetime.now(timezone.utc)

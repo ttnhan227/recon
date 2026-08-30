@@ -28,7 +28,7 @@
 
 ```bash
 # 1. Install directly from PyPI
-pip install recon-qa[browser,ai]
+pip install recon-qa
 
 # 2. Run automated test suite against any running API or OpenAPI spec
 recon test https://petstore.swagger.io/v2/swagger.json --concurrency 4
@@ -113,7 +113,7 @@ Target Application URL / OpenAPI Spec
 
 - **Deterministic Testing First** — AI operates as an analytical reasoning layer, not an unpredictable execution engine. Tests pass/fail on concrete assertions.
 - **Bounded Worker Pool** — Prevents server overload by capping concurrent asynchronous HTTP connections via asyncio queues.
-- **Provider-Agnostic LLM Interface** — Built-in support for Google Gemini, Mistral AI, OpenAI, and local Ollama instances with custom base URLs.
+- **Provider-Agnostic LLM Engine** — Seamless support for Google Gemini, OpenAI, Anthropic Claude, Mistral AI, Ollama, DeepSeek, and custom endpoints.
 - **Self-Contained HTML Reports** — Zero external CSS/JS CDN dependencies; all styles, charts, and diffs are inline for offline auditing.
 
 ---
@@ -124,6 +124,7 @@ Target Application URL / OpenAPI Spec
 - **Multi-Category Test Suites**: Generates Happy Path, Validation, Boundary, Negative, and Authentication test suites automatically.
 - **Asynchronous Execution Pool**: Runs tests in parallel with configurable worker limits (`--concurrency 4-16`).
 - **Dual-Layer Root Cause Analysis**: Pairs deterministic HTTP error categorization with confidence-scored AI diagnosis.
+- **Multi-Provider AI Intelligence**: Seamless out-of-the-box support for Google Gemini, OpenAI, Claude, Mistral, Ollama, and DeepSeek.
 - **Actionable Remediation**: Produces concrete code-fix and payload adjustment recommendations.
 - **Interactive HTML & JSON Reports**: Comprehensive dashboard with execution timelines, failure taxonomy, and step traces.
 
@@ -134,7 +135,7 @@ Target Application URL / OpenAPI Spec
 - **Core Engine**: Python 3.12, Pydantic v2, httpx, asyncio
 - **CLI & UX**: Typer, Rich
 - **Browser Automation**: Playwright Async
-- **Analysis & AI**: Google GenAI, Mistral AI, OpenAI API, Ollama
+- **Analysis & AI**: Google Gemini, OpenAI, Claude, Mistral, Ollama, DeepSeek
 - **Persistence & Reports**: SQLAlchemy, SQLite, Jinja2, HTML5/CSS3
 - **Distribution**: PyPI (`recon-qa`)
 
@@ -145,11 +146,11 @@ Target Application URL / OpenAPI Spec
 ### 1. Installation
 
 ```bash
-# Core CLI + API testing
+# Core CLI + AI testing (includes Google Gemini, OpenAI, Claude, Mistral, Ollama)
 pip install recon-qa
 
-# Full installation (including Playwright browser & AI providers)
-pip install "recon-qa[browser,ai]"
+# With Playwright browser testing support
+pip install "recon-qa[browser]"
 playwright install chromium
 ```
 
