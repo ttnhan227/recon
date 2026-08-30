@@ -16,13 +16,23 @@ def get_recon_home() -> Path:
 
 def get_project_slug(target: str | None = None, cwd: Path | None = None) -> str:
     """Derives a clean project slug from current working directory or target URL."""
-    generic_names = {"projects", "workspace", "workspaces", "src", "app", "server", "client", "code"}
+    generic_names = {
+        "projects", "workspace", "workspaces", "src", "app", "server", "client", "code",
+        "home", "users", "runner", "work", "documents", "desktop", "downloads", "tmp", "temp", "root"
+    }
 
     # 1. Check current working directory or explicit cwd first
-    curr = (cwd or Path.cwd()).resolve()
+    curr = cwd if cwd is not None else Path.cwd()
+    try:
+        if cwd is None:
+            curr = curr.resolve()
+    except Exception:
+        pass
+
     while curr and curr.name:
-        if curr.name.lower() not in generic_names:
-            clean = "".join(c if c.isalnum() or c in "-_" else "_" for c in curr.name.lower()).strip("_")
+        name = curr.name.rstrip(":")
+        if name.lower() not in generic_names and name:
+            clean = "".join(c if c.isalnum() or c in "-_" else "_" for c in name.lower()).strip("_")
             if clean:
                 return clean
         if curr.parent == curr:

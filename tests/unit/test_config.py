@@ -6,16 +6,16 @@ from recon.common.config import get_project_slug, get_recon_home, settings
 
 def test_get_project_slug():
     # From URL (when cwd is generic)
-    generic_cwd = Path("C:/projects")
+    generic_cwd = Path("projects")
     assert get_project_slug("http://localhost:8000", cwd=generic_cwd) == "localhost_8000"
     assert get_project_slug("http://localhost:8080/api/v1", cwd=generic_cwd) == "localhost_8080"
     assert get_project_slug("https://api.my-app.com/v1", cwd=generic_cwd) == "api_my-app_com"
 
     # From Directory Path
-    assert get_project_slug(cwd=Path("C:/Users/test/Documents/projects/Groundwork")) == "groundwork"
-    assert get_project_slug(cwd=Path("C:/Users/test/Documents/projects/Groundwork/server")) == "groundwork"
-    assert get_project_slug(cwd=Path("C:/Users/test/Documents/projects/Groundwork/client/src")) == "groundwork"
-    assert get_project_slug(cwd=Path("C:/Users/test/Documents/projects/VeriSpend")) == "verispend"
+    assert get_project_slug(cwd=Path("Groundwork")) == "groundwork"
+    assert get_project_slug(cwd=Path("Groundwork/server")) == "groundwork"
+    assert get_project_slug(cwd=Path("Groundwork/client/src")) == "groundwork"
+    assert get_project_slug(cwd=Path("VeriSpend")) == "verispend"
 
 
 def test_recon_home_and_settings():
