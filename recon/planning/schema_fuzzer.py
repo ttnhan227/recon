@@ -21,21 +21,31 @@ class SchemaFuzzer:
             return p_enum[0]
 
         if p_type == "string":
-            if p_format == "email" or "email" in prop_name.lower():
+            prop_lower = prop_name.lower()
+            if p_format == "email" or "email" in prop_lower:
                 return f"qa.test.{uuid.uuid4().hex[:6]}@example.com"
-            if p_format == "uuid" or "uuid" in prop_name.lower():
+            if (
+                p_format == "uuid"
+                or "uuid" in prop_lower
+                or prop_lower.endswith("_id")
+                or prop_lower == "id"
+            ):
                 return str(uuid.uuid4())
             if p_format == "date":
                 return "2026-08-28"
             if p_format == "date-time":
                 return "2026-08-28T12:00:00Z"
-            if "password" in prop_name.lower():
+            if p_format == "uri" or "url" in prop_lower:
+                return "https://example.com/webhook"
+            if p_format == "binary" or "file" in prop_lower:
+                return "synthetic_qa_test_document.pdf"
+            if "password" in prop_lower:
                 return "P@ssword123!"
-            if "name" in prop_name.lower():
-                return "Test User"
-            if "currency" in prop_name.lower():
+            if "name" in prop_lower or "title" in prop_lower:
+                return "Test Entity"
+            if "currency" in prop_lower:
                 return "USD"
-            if "sku" in prop_name.lower():
+            if "sku" in prop_lower:
                 return "ITEM-100"
             return f"test_{prop_name or 'val'}"
 

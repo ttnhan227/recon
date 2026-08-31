@@ -91,9 +91,9 @@ class WebCrawler:
                     title = await page.title()
                     content = await page.content()
 
-                    # Extract forms, buttons, links, inputs
-                    discovered_page = self._parse_html_content(
-                        current_url, content, status_code, title, console_errors, network_errors
+                    # Extract forms, buttons, links, inputs with live DOM inspection
+                    discovered_page = await self._parse_playwright_page(
+                        page, current_url, status_code, title, console_errors, network_errors
                     )
                     self.discovered_pages.append(discovered_page)
 
@@ -171,6 +171,124 @@ class WebCrawler:
             spec_source="http_crawler",
             pages=self.discovered_pages,
             metadata={"crawled_pages_count": len(self.discovered_pages)},
+        )
+
+    async def _parse_playwright_page(
+        self,
+        page: Any,
+        url: str,
+        status_code: int,
+        title: str | None,
+        console_errors: list[str],
+        network_errors: list[str],
+    ) -> DiscoveredPage:
+        import json
+        page_title = title or await page.title()
+
+        # Extract links
+        links: list[str] = []
+        for a_handle in await page.query_selector_all("a[href]"):
+            try:
+                href = (await a_handle.get_attribute("href") or "").strip()
+                if href and not href.startswith(("javascript:", "mailto:", "tel:")):
+                    abs_url = urljoin(url, href)
+                    links.append(abs_url)
+            except Exception:
+                pass
+
+        # Extract forms
+        forms: list[DiscoveredForm] = []
+        for form_idx, f_handle in enumerate(await page.query_selector_all("form")):
+            try:
+                form_action = urljoin(url, await f_handle.get_attribute("action") or "")
+                form_method = (await f_handle.get_attribute("method") or "GET").upper()
+                form_id = await f_handle.get_attribute("id")
+                form_selector = f"#{form_id}" if form_id else f"form:nth-of-type({form_idx + 1})"
+                is_vis = await f_handle.is_visible()
+
+                fields: list[DiscoveredFormField] = []
+                for inp_handle in await f_handle.query_selector_all("input, select, textarea"):
+                    try:
+                        name = (await inp_handle.get_attribute("name") or await inp_handle.get_attribute("id") or "").strip()
+                        if not name:
+                            continue
+                        tag = await inp_handle.evaluate("el => el.tagName.toLowerCase()")
+                        input_type = (await inp_handle.get_attribute("type") or "text") if tag == "input" else tag
+                        required = await inp_handle.get_attribute("required") is not None
+                        placeholder = await inp_handle.get_attribute("placeholder")
+                        default_val = await inp_handle.get_attribute("value")
+                        inp_id = await inp_handle.get_attribute("id")
+                        selector = f"#{inp_id}" if inp_id else f"[name='{name}']"
+
+                        fields.append(
+                            DiscoveredFormField(
+                                name=name,
+                                field_type=input_type,
+                                required=required,
+                                placeholder=placeholder,
+                                default_value=default_val,
+                                selector=selector,
+                            )
+                        )
+                    except Exception:
+                        pass
+
+                forms.append(
+                    DiscoveredForm(
+                        action=form_action,
+                        method=form_method,
+                        selector=form_selector,
+                        fields=fields,
+                        location_url=url,
+                        is_visible=is_vis,
+                    )
+                )
+            except Exception:
+                pass
+
+        # Extract interactive buttons with visibility & semantic selectors
+        buttons: list[DiscoveredButton] = []
+        for btn_idx, b_handle in enumerate(await page.query_selector_all("button, [role='button']")):
+            try:
+                is_vis = await b_handle.is_visible()
+                text = (await b_handle.inner_text()).strip()
+                btn_id = await b_handle.get_attribute("id")
+                aria_label = await b_handle.get_attribute("aria-label")
+                name_hint = text or aria_label or f"Button {btn_idx + 1}"
+
+                if btn_id:
+                    selector = f"#{btn_id}"
+                elif text and len(text) < 40 and "\n" not in text:
+                    # Clean escaped text selector
+                    clean_text = text.replace('"', '\\"')
+                    selector = f'button:has-text("{clean_text}")'
+                elif aria_label:
+                    clean_aria = aria_label.replace('"', '\\"')
+                    selector = f'[aria-label="{clean_aria}"]'
+                else:
+                    selector = f"button:nth-of-type({btn_idx + 1})"
+
+                btn_type = (await b_handle.get_attribute("type")) or "button"
+                buttons.append(
+                    DiscoveredButton(
+                        text=name_hint,
+                        selector=selector,
+                        button_type=btn_type,
+                        is_visible=is_vis,
+                    )
+                )
+            except Exception:
+                pass
+
+        return DiscoveredPage(
+            url=url,
+            title=page_title,
+            status_code=status_code,
+            forms=forms,
+            buttons=buttons,
+            links=list(set(links)),
+            console_errors=console_errors,
+            network_errors=network_errors,
         )
 
     def _parse_html_content(
@@ -251,6 +369,7 @@ class WebCrawler:
                     fields=fields,
                     submit_selector=submit_selector,
                     location_url=url,
+                    is_visible=True,
                 )
             )
 
@@ -265,6 +384,7 @@ class WebCrawler:
                     text=text or f"Button {btn_idx + 1}",
                     selector=selector,
                     button_type=btn.get("type", "button"),
+                    is_visible=True,
                 )
             )
 

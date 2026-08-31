@@ -71,11 +71,29 @@ class AITestGenerator:
         try:
             raw_response = await self.provider.complete(prompt, system_prompt=SYSTEM_PROMPT)
             clean_json = raw_response.strip()
-            if clean_json.startswith("```"):
-                clean_json = re.sub(r"^```(?:json)?\n?", "", clean_json)
-                clean_json = re.sub(r"\n?```$", "", clean_json)
 
-            data = json.loads(clean_json)
+            # 1. Strip markdown code block wrappers
+            if "```" in clean_json:
+                code_match = re.search(r"```(?:json)?\s*([\s\S]*?)\s*```", clean_json)
+                if code_match:
+                    clean_json = code_match.group(1).strip()
+
+            # 2. Extract outermost JSON object
+            obj_match = re.search(r"\{[\s\S]*\}", clean_json)
+            if obj_match:
+                clean_json = obj_match.group(0)
+
+            # 3. Clean common LLM trailing commas
+            clean_json = re.sub(r",\s*([\]}])", r"\1", clean_json)
+
+            try:
+                data = json.loads(clean_json)
+            except Exception:
+                # Secondary attempt: fix unquoted keys / single quotes if any
+                clean_json = clean_json.replace("'", '"')
+                clean_json = re.sub(r",\s*([\]}])", r"\1", clean_json)
+                data = json.loads(clean_json)
+
             proposed_list = data.get("test_cases", [])
 
             validated_tests: list[TestCase] = []

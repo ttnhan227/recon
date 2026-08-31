@@ -43,6 +43,7 @@ class DiscoveredForm(BaseModel):
     fields: list[DiscoveredFormField] = Field(default_factory=list)
     submit_selector: str | None = None
     location_url: str
+    is_visible: bool = True
 
 
 class DiscoveredButton(BaseModel):
@@ -50,6 +51,7 @@ class DiscoveredButton(BaseModel):
     selector: str
     button_type: str = "button"
     is_clickable: bool = True
+    is_visible: bool = True
 
 
 class DiscoveredPage(BaseModel):

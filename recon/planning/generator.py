@@ -55,12 +55,23 @@ class TestSuiteGenerator:
         base_url = self.app.target_url.rstrip("/")
         full_url = urljoin(base_url + "/", ep.path.lstrip("/"))
 
-        # Replace path parameters with sample values
+        # Replace path parameters with valid format-aware sample values
         sample_path = ep.path
         query_params: dict[str, Any] = {}
         for param in ep.parameters:
             if param.in_type == "path":
-                val = param.default or "1"
+                if param.default:
+                    val = param.default
+                elif (
+                    param.schema_definition.get("format") == "uuid"
+                    or param.name.endswith("_id")
+                    or param.name == "id"
+                ):
+                    val = "00000000-0000-0000-0000-000000000001"
+                elif param.data_type in ("integer", "number"):
+                    val = "1"
+                else:
+                    val = "test_item"
                 sample_path = sample_path.replace(f"{{{param.name}}}", str(val))
             elif param.in_type == "query" and param.required:
                 query_params[param.name] = param.default or "test_param"
@@ -267,7 +278,21 @@ class TestSuiteGenerator:
 
         # --- F. ERROR HANDLING (Non-existent Resource) ---
         if "{" in ep.path and "}" in ep.path and ep.method in ("GET", "PUT", "DELETE"):
-            not_found_path = re.sub(r"\{[a-zA-Z0-9_]+\}", "99999999", ep.path)
+            not_found_path = ep.path
+            for param in ep.parameters:
+                if param.in_type == "path":
+                    if (
+                        param.schema_definition.get("format") == "uuid"
+                        or param.name.endswith("_id")
+                        or param.name == "id"
+                    ):
+                        nf_val = "00000000-0000-0000-0000-000000000000"
+                    elif param.data_type in ("integer", "number"):
+                        nf_val = "999999"
+                    else:
+                        nf_val = "non_existent_item_99999"
+                    not_found_path = not_found_path.replace(f"{{{param.name}}}", nf_val)
+
             not_found_url = urljoin(base_url + "/", not_found_path.lstrip("/"))
             nf_step = TestStep(
                 name=f"{ep.method} {not_found_path} - Non-existent ID",
@@ -330,8 +355,9 @@ class TestSuiteGenerator:
             )
         )
 
-        # 2. Form submission tests
-        for f_idx, form in enumerate(page.forms):
+        # 2. Form submission tests (visible forms only)
+        visible_forms = [f for f in page.forms if f.is_visible]
+        for f_idx, form in enumerate(visible_forms):
             form_steps = [
                 TestStep(
                     name=f"Navigate to form page: {page.url}",
@@ -390,8 +416,9 @@ class TestSuiteGenerator:
                 )
             )
 
-        # 3. Interactive button clicks
-        for b_idx, btn in enumerate(page.buttons[:3]):  # Test up to 3 buttons
+        # 3. Interactive button clicks - only visible buttons on initial page load
+        visible_buttons = [btn for btn in page.buttons if btn.is_visible]
+        for b_idx, btn in enumerate(visible_buttons[:5]):  # Test up to 5 visible buttons
             btn_steps = [
                 TestStep(
                     name=f"Navigate to {page.url}",

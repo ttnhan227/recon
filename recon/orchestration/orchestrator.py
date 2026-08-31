@@ -6,6 +6,8 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable, Coroutine, Any
+from urllib.parse import urljoin
+import httpx
 
 from recon.analysis.classifier import DeterministicFailureClassifier
 from recon.analysis.rca_engine import RootCauseAnalyzer
@@ -51,6 +53,74 @@ class TestOrchestrator:
         self.ai_generator = AITestGenerator()
         self.external_api_client = external_api_client
 
+    async def _auto_authenticate(self, target_url: str, app: DiscoveredApplication) -> dict[str, str]:
+        """Attempts pre-flight synthetic registration and login to capture JWT token."""
+        auth_headers: dict[str, str] = {}
+        base_url = target_url.rstrip("/")
+
+        # Find candidate endpoints
+        register_ep = next(
+            (ep for ep in app.endpoints if any(k in ep.path.lower() for k in ("/register", "/signup")) and ep.method == "POST"),
+            None,
+        )
+        login_ep = next(
+            (ep for ep in app.endpoints if any(k in ep.path.lower() for k in ("/login", "/token", "/auth/access")) and ep.method == "POST"),
+            None,
+        )
+
+        if not login_ep and not register_ep:
+            return auth_headers
+
+        test_email = f"recon.synthetic.{uuid.uuid4().hex[:6]}@example.com"
+        test_password = "AutoAuthP@ss123!"
+
+        async with httpx.AsyncClient(timeout=10.0, verify=False) as client:
+            # 1. Try Registration first if endpoint exists
+            if register_ep:
+                reg_url = urljoin(base_url + "/", register_ep.path.lstrip("/"))
+                reg_payload = {
+                    "email": test_email,
+                    "password": test_password,
+                    "display_name": "Recon QA Agent",
+                    "name": "Recon QA",
+                }
+                try:
+                    await client.post(reg_url, json=reg_payload)
+                except Exception:
+                    pass
+
+            # 2. Try Login
+            if login_ep:
+                login_url = urljoin(base_url + "/", login_ep.path.lstrip("/"))
+                # Try JSON login
+                login_payload = {"email": test_email, "password": test_password, "username": test_email}
+                try:
+                    resp = await client.post(login_url, json=login_payload)
+                    if resp.status_code in (200, 201):
+                        data = resp.json()
+                        token = data.get("access_token") or data.get("token") or data.get("jwt")
+                        if token:
+                            logger.info("Autonomous Auth: Captured JWT access token from login endpoint.")
+                            auth_headers["Authorization"] = f"Bearer {token}"
+                            return auth_headers
+                except Exception:
+                    pass
+
+                # Try Form/OAuth2 password flow (e.g. for FastAPI OAuth2PasswordRequestForm)
+                try:
+                    resp = await client.post(login_url, data={"username": test_email, "password": test_password})
+                    if resp.status_code in (200, 201):
+                        data = resp.json()
+                        token = data.get("access_token") or data.get("token")
+                        if token:
+                            logger.info("Autonomous Auth: Captured OAuth2 token from form login.")
+                            auth_headers["Authorization"] = f"Bearer {token}"
+                            return auth_headers
+                except Exception:
+                    pass
+
+        return auth_headers
+
     async def run_pipeline(
         self,
         target_url: str,
@@ -91,7 +161,13 @@ class TestOrchestrator:
                 spec_path_or_url=spec_path_or_url,
                 enable_browser=enable_browser,
             )
-            planner = TestSuiteGenerator(app, default_headers=headers)
+            # Autonomous Auth Chaining: Auto-login/register if no auth headers provided
+            effective_headers = dict(headers or {})
+            if not any(k.lower() == "authorization" for k in effective_headers):
+                auto_headers = await self._auto_authenticate(target_url, app)
+                effective_headers.update(auto_headers)
+
+            planner = TestSuiteGenerator(app, default_headers=effective_headers)
             tests_to_run = planner.generate_suite()
 
             # AI exploratory test generation

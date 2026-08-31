@@ -56,14 +56,14 @@ def get_project_slug(target: str | None = None, cwd: Path | None = None) -> str:
 class ReconSettings(BaseSettings):
     model_config = SettingsConfigDict(
         env_prefix="RECON_",
-        env_file=(str(Path.home() / ".recon" / ".env"), ".env"),
+        env_file=str(Path.home() / ".recon" / ".env"),
         env_file_encoding="utf-8",
         extra="ignore",
     )
 
     # General
     app_name: str = "Recon QA Agent"
-    version: str = "0.1.2"
+    version: str = "0.1.3"
     log_level: str = "INFO"
     json_logs: bool = False
 

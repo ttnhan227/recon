@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.1.3] - 2026-08-31
+
+### Added
+- **Autonomous Auth & Session Chaining**: Automatically discovers `/api/v1/auth/register` and `/api/v1/auth/login` endpoints on target APIs, creates a synthetic test user session, and extracts the JWT `access_token` into all downstream secured routes when no manual `-H "Authorization: ..."` header is provided.
+- **Visibility-Aware Browser Scanning & Smart Selectors**: Playwright crawler now checks real-time DOM element visibility (`is_visible: bool`) and generates accessible text-based selectors (`button:has-text(...)` or `[aria-label=...]`) to prevent unclickable hidden elements inside closed tabs/modals from timing out.
+- **Format-Aware Semantic Data Synthesizer**: Auto-generates valid `uuid4` IDs for all path parameters and JSON fields ending in `_id` or `id` (e.g. `workspace_id`, `document_id`) to prevent strict Pydantic/FastAPI UUID validation rejections.
+- **Centralized Test Suite Storage (`~/.recon/suites/{project}/`)**: `recon generate` automatically saves test plans to `~/.recon/suites/{project}/test_suite.json`, keeping target project repositories clean.
+
+### Fixed
+- **Settings Environment Isolation**: Configured Recon to read exclusively from `~/.recon/.env` so target projects' `.env` files (e.g., PostgreSQL / MySQL connection strings) never collide with Recon's internal database.
+- **Resilient AI Exploratory JSON Parsing**: Added regex extraction, code fence stripping, and automatic trailing comma cleanup so LLM test case generation never fails on formatting delimiters.
+- **DiscoveredPage Schema Alignment**: Fixed missing attributes (`console_errors`, `buttons`, `links`) in `recon scan` UI table rendering.
+
+---
+
 ## [0.1.2] - 2026-08-31
 
 ### Added

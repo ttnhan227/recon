@@ -12,7 +12,7 @@ from rich.table import Table
 
 from recon.apps.cli.config_cli import config_app, list_providers, set_key, use_provider
 from recon.apps.cli.doctor import run_doctor
-from recon.common.config import get_project_slug, settings
+from recon.common.config import get_project_slug, get_recon_home, settings
 from recon.common.logging import console, logger
 from recon.common.models import TestCase, TestCategory, TestResult, TestStatus, TestStep, TestType
 from recon.discovery.endpoint_detector import discover_application
@@ -68,15 +68,17 @@ def scan_command(
             p_table.add_column("Title", style="white")
             p_table.add_column("Forms", justify="center")
             p_table.add_column("Buttons", justify="center")
+            p_table.add_column("Links", justify="center")
             p_table.add_column("Console Errors", justify="center")
 
             for page in discovered.pages:
-                err_count = len(page.console_logs)
+                err_count = len(page.console_errors)
                 p_table.add_row(
                     page.url,
                     page.title or "-",
                     str(len(page.forms)),
-                    str(len(page.interactive_elements)),
+                    str(len(page.buttons)),
+                    str(len(page.links)),
                     f"[red]{err_count}[/red]" if err_count > 0 else "[green]0[/green]",
                 )
             console.print(p_table)
@@ -88,7 +90,7 @@ def scan_command(
 def generate_command(
     target: Annotated[str, typer.Argument(help="Target URL or host")],
     spec: Annotated[Optional[str], typer.Option("--spec", "-s", help="Path or URL to OpenAPI spec")] = None,
-    output: Annotated[Path, typer.Option("--output", "-o", help="Output JSON path for generated test suite")] = Path("test_suite.json"),
+    output: Annotated[Optional[Path], typer.Option("--output", "-o", help="Output JSON path for generated test suite")] = None,
     browser: Annotated[bool, typer.Option("--browser", "-b", help="Enable browser crawling")] = False,
 ):
     """Plans test suite including happy-path, boundary fuzzing, negative validation, and security probes."""
@@ -100,10 +102,19 @@ def generate_command(
             planner = TestSuiteGenerator(app_meta)
             tests = planner.generate_suite()
 
-        output.write_text(
+        if output:
+            out_path = output
+        else:
+            project_slug = get_project_slug(target)
+            suites_dir = get_recon_home() / "suites" / project_slug
+            suites_dir.mkdir(parents=True, exist_ok=True)
+            out_path = suites_dir / "test_suite.json"
+
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        out_path.write_text(
             json.dumps([t.model_dump(mode="json") for t in tests], indent=2), encoding="utf-8"
         )
-        console.print(f"[green]✓ Generated {len(tests)} test cases saved to [bold]{output}[/bold][/green]")
+        console.print(f"[green]✓ Generated {len(tests)} test cases saved to [bold]{out_path}[/bold][/green]")
 
     asyncio.run(_run())
 
