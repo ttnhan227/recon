@@ -63,7 +63,7 @@ class ReconSettings(BaseSettings):
 
     # General
     app_name: str = "Recon QA Agent"
-    version: str = "0.1.3"
+    version: str = "0.1.2"
     log_level: str = "INFO"
     json_logs: bool = False
 
