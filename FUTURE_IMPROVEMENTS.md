@@ -1,4 +1,4 @@
-﻿# Recon: Future Improvements & Roadmap
+# Recon: Future Improvements & Roadmap
 
 This document outlines planned capabilities, architectural enhancements, and feature milestones for upcoming versions of **Recon** (`recon-qa`).
 
@@ -6,8 +6,17 @@ This document outlines planned capabilities, architectural enhancements, and fea
 
 ## 🎯 High-Priority Roadmap (`v0.1.3` - `v0.2.0`)
 
-### 1. Smart Session & State Chaining (Autonomous Auth & Seeding)
-- **Current Limitation**: Secured endpoints require manually extracting a JWT token and passing `-H "Authorization: Bearer <TOKEN>"`.
+### 1. Persistent Token & Auth Profile Storage (`recon auth set-token`)
+- **Current Limitation**: Users have to pass `-H "Authorization: Bearer <TOKEN>"` manually on every test execution.
+- **Target Feature**:
+  - Add `recon auth set-token <token>` (or `recon auth login`) that saves the bearer token in `~/.recon/auth/{project_slug}.json`.
+  - Automatically attach the saved token on subsequent `recon test`, `recon scan`, and `recon analyze` runs without requiring the `-H` flag every time.
+  - Support multiple named profiles (e.g., `recon auth use admin`, `recon auth use regular-user`).
+
+---
+
+### 2. Smart Session & State Chaining (Autonomous Auth & Seeding)
+- **Current Limitation**: Secured endpoints require manually extracting a JWT token.
 - **Target Feature**:
   - Automatically detect login/registration endpoints (`/api/v1/auth/register`, `/api/v1/auth/login`) from OpenAPI specs.
   - Execute automatic pre-flight registration + login, capture the returned JWT/session cookie, and inject it across all downstream authenticated test cases automatically.
