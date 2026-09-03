@@ -4,13 +4,13 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "recon-qa"
-version = "0.1.2"
-description = "Recon: AI QA Agent — Autonomous Testing & Failure Analysis Platform"
+version = "0.2.0"
+description = "Recon: AI QA Agent — Autonomous API & Web Testing, DAG Stateful Chaining, and Root-Cause Analysis Platform"
 readme = "README.md"
 requires-python = ">=3.12"
 license = { text = "MIT" }
 authors = [{ name = "Recon Engineering Team" }]
-keywords = ["qa", "testing", "automation", "playwright", "ai", "failure-analysis", "openapi"]
+keywords = ["qa", "testing", "automation", "playwright", "ai", "failure-analysis", "openapi", "dag-chaining"]
 dependencies = [
     "typer>=0.12.0",
     "rich>=13.7.0",
@@ -37,6 +37,8 @@ dev = [
     "ruff>=0.4.0",
     "mypy>=1.10.0",
     "pytest-cov>=5.0.0",
+    "build>=1.2.0",
+    "twine>=5.0.0",
 ]
 
 [project.scripts]

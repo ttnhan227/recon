@@ -74,18 +74,21 @@ Target Application URL / OpenAPI Spec
   Discovery Engine ──► OpenAPI 3.x / Swagger Parser & Playwright Crawler
         │
         ▼
-  Deterministic Test Planner
+  Autonomous Dynamic Auth ──► Schema-driven Auto-Registration & Bearer Token Injection
         │
-        ├── Happy Path Cases       (Valid payload matching schemas)
-        ├── Validation Checks      (Missing required field permutations)
-        ├── Boundary & Edge Cases  (Empty strings, zero values, negative IDs)
-        ├── Negative Cases         (Type violations, malformed inputs)
-        └── Auth / Security Cases  (Missing/invalid bearer tokens)
+        ▼
+  DAG Test Planner & Ordering
+        │
+        ├── 1. Root Entity Creation (POST endpoints ──► Harvest IDs into StatePool)
+        ├── 2. Stateful Query / Detail Operations (Substitute real entity IDs into {params})
+        ├── 3. Boundary & Validation Checks (Empty strings, zero values, negative IDs)
+        ├── 4. Strict Enum & Schema Violations (Negative type and enum assertion probes)
+        └── 5. Security & Error Handling (401/403 credential rejection & 404 handling)
         │
         ▼
   Async Worker Pool (Bounded Concurrency: 4–16 workers)
         │
-        ├── API Runner (httpx, status codes, JSONPath assertions)
+        ├── API Runner with Dynamic DAG State Substitution
         └── Browser Runner (Playwright headless DOM navigation)
         │
         ▼
@@ -103,7 +106,9 @@ Target Application URL / OpenAPI Spec
 | Module | Technology | Role |
 |---|---|---|
 | Discovery Engine | Pydantic v2 + httpx | Auto-detects OpenAPI 3.0, 3.1 & Swagger 2.0 specs |
-| Test Planner | Python 3.12 AST | Generates categorized test matrices without manual scripting |
+| Test Planner & DAG | Python 3.12 AST | Generates categorized test matrices with topological dependency ordering |
+| State Pool Engine | Thread-Safe StateStore | Harvests created entity IDs and injects them into downstream test routes |
+| Autonomous Auth | Schema-Fuzzed Auth | Pre-flight registration & login flow with recursive JWT token extraction |
 | Concurrency Pool | `asyncio` + WorkerPool | Bounded parallel test execution (4–16 workers) |
 | RCA Engine | Deterministic + LLM | Rule-based failure classification & AI remediation recommendations |
 | Reporting | Jinja2 + Tailwind CSS | Standalone interactive HTML reports with assertion step diffs |
@@ -112,6 +117,9 @@ Target Application URL / OpenAPI Spec
 ### Key Infrastructure Decisions
 
 - **Deterministic Testing First** — AI operates as an analytical reasoning layer, not an unpredictable execution engine. Tests pass/fail on concrete assertions.
+- **Stateful DAG Dependency Chaining** — Solves synthetic 404s by executing entity creation endpoints first, storing generated IDs in a runtime `StatePool`, and substituting real IDs into dependent `GET`/`PUT` routes.
+- **Autonomous Authentication Lifecycle** — Automatically discovers registration/login schemas, registers a test entity, and propagates `Authorization: Bearer <token>` across all protected endpoints.
+- **Strict OpenAPI 3.0/3.1 Constraint Fuzzing** — Adheres strictly to `enum`, `minimum`, `maximum`, `minLength`, `format` (`uuid`, `email`, `currency`, `date-time`) specifications for robust validation and negative test matrices.
 - **Bounded Worker Pool** — Prevents server overload by capping concurrent asynchronous HTTP connections via asyncio queues.
 - **Provider-Agnostic LLM Engine** — Seamless support for Google Gemini, OpenAI, Anthropic Claude, Mistral AI, Ollama, DeepSeek, and custom endpoints.
 - **Self-Contained HTML Reports** — Zero external CSS/JS CDN dependencies; all styles, charts, and diffs are inline for offline auditing.
@@ -121,6 +129,8 @@ Target Application URL / OpenAPI Spec
 ## Features
 
 - **Automated OpenAPI Discovery**: Parses OpenAPI 3.0, 3.1, and Swagger 2.0 schemas into strongly-typed parameter trees.
+- **Stateful Chaining (DAG)**: Automatically feeds created entity IDs from `POST` responses into subsequent `GET`, `PUT`, and `DELETE` requests.
+- **Autonomous Dynamic Auth**: Pre-flight registration and login flow automatically extracts Bearer JWT tokens.
 - **Multi-Category Test Suites**: Generates Happy Path, Validation, Boundary, Negative, and Authentication test suites automatically.
 - **Asynchronous Execution Pool**: Runs tests in parallel with configurable worker limits (`--concurrency 4-16`).
 - **Dual-Layer Root Cause Analysis**: Pairs deterministic HTTP error categorization with confidence-scored AI diagnosis.
@@ -157,29 +167,18 @@ playwright install chromium
 ### 2. Run Test Suite Against an API
 
 ```bash
-# Basic test execution
+# Basic test execution with autonomous auth & DAG chaining
 recon test http://localhost:8000
 
 # With bounded concurrency & custom OpenAPI path
-recon test http://localhost:8000 --openapi /api/v1/openapi.json --concurrency 8
+recon test http://localhost:8000 --spec /api/v1/openapi.json --concurrency 8
+
+# With explicit authorization header if using pre-existing static token
+recon test http://localhost:8000 --header "Authorization: Bearer <your-token>"
 
 # With AI Root-Cause Analysis enabled
-recon test http://localhost:8000 --ai --provider gemini --model gemini-flash-latest
+recon test http://localhost:8000 --ai
 ```
-
----
-
-## Environment Variables Reference
-
-| Variable | Description | Default / Example |
-|---|---|---|
-| `RECON_LLM_PROVIDER` | Default LLM provider for failure RCA | `gemini` (`openai`, `mistral`, `ollama`) |
-| `RECON_LLM_API_KEY` | API Key for selected provider | Required for `--ai` |
-| `RECON_LLM_MODEL` | Target language model | `gemini-flash-latest` / `gpt-4o-mini` |
-| `RECON_LLM_BASE_URL` | Base URL for OpenAI-compatible or local Ollama endpoints | `http://localhost:11434/v1` |
-| `RECON_CONCURRENCY` | Default worker pool concurrency limit | `4` |
-| `RECON_TIMEOUT` | HTTP request timeout in seconds | `15` |
-| `RECON_REPORTS_DIR` | Output directory for HTML and JSON reports | `./reports` |
 
 ---
 
@@ -192,13 +191,6 @@ pytest tests/ -v
 # Run with coverage report
 pytest --cov=recon tests/
 ```
-
-Test suites cover:
-- OpenAPI 3.x and Swagger 2.0 schema normalization
-- Deterministic test generator permutations
-- Bounded async worker concurrency & error recovery
-- Deterministic failure classification & RCA prompting
-- HTML report rendering & schema validation
 
 ---
 

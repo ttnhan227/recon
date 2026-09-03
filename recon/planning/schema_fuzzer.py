@@ -5,10 +5,13 @@ import uuid
 
 
 class SchemaFuzzer:
-    """Generates valid, boundary, and negative payloads from JSON schemas."""
+    """Generates valid, boundary, and negative payloads from JSON schemas with strict constraint adherence."""
 
     @staticmethod
     def generate_valid_value(prop_schema: dict[str, Any], prop_name: str = "") -> Any:
+        if not prop_schema or not isinstance(prop_schema, dict):
+            return "test_val"
+
         p_type = prop_schema.get("type", "string")
         p_format = prop_schema.get("format")
         p_enum = prop_schema.get("enum")
@@ -17,18 +20,21 @@ class SchemaFuzzer:
         if p_default is not None:
             return p_default
 
+        # 1. Strict Enum Adherence
         if p_enum and isinstance(p_enum, list) and len(p_enum) > 0:
             return p_enum[0]
 
+        # 2. String Type Fuzzing
         if p_type == "string":
             prop_lower = prop_name.lower()
             if p_format == "email" or "email" in prop_lower:
-                return f"qa.test.{uuid.uuid4().hex[:6]}@example.com"
+                return f"qa.recon.{uuid.uuid4().hex[:6]}@example.com"
             if (
                 p_format == "uuid"
                 or "uuid" in prop_lower
                 or prop_lower.endswith("_id")
                 or prop_lower == "id"
+                or prop_lower.endswith("id")
             ):
                 return str(uuid.uuid4())
             if p_format == "date":
@@ -40,26 +46,53 @@ class SchemaFuzzer:
             if p_format == "binary" or "file" in prop_lower:
                 return "synthetic_qa_test_document.pdf"
             if "password" in prop_lower:
-                return "P@ssword123!"
-            if "name" in prop_lower or "title" in prop_lower:
-                return "Test Entity"
+                return "Password123!"
             if "currency" in prop_lower:
                 return "USD"
+            if "company" in prop_lower or "tenant" in prop_lower:
+                return f"Recon Enterprise {uuid.uuid4().hex[:4]}"
+            if "name" in prop_lower or "fullname" in prop_lower or "display_name" in prop_lower:
+                return "Recon QA Tester"
             if "sku" in prop_lower:
                 return "ITEM-100"
-            return f"test_{prop_name or 'val'}"
+            if "role" in prop_lower:
+                return "TenantAdmin"
+            if "type" in prop_lower or "accounttype" in prop_lower:
+                return "Customer"
+            if "reason" in prop_lower:
+                return "Commercial reconciliation adjustment"
+            if "notes" in prop_lower or "description" in prop_lower:
+                return "Automated enterprise audit verification"
 
+            # Check minLength
+            min_len = prop_schema.get("minLength", 1)
+            val = f"test_{prop_name or 'val'}"
+            if len(val) < min_len:
+                val = val + "_" * (min_len - len(val))
+            return val
+
+        # 3. Numeric Types with Min/Max
         elif p_type in ("integer", "number"):
-            minimum = prop_schema.get("minimum", 1)
-            return int(minimum) if p_type == "integer" else float(minimum)
+            minimum = prop_schema.get("minimum")
+            maximum = prop_schema.get("maximum")
+            if minimum is not None:
+                val = minimum
+            elif maximum is not None:
+                val = maximum
+            else:
+                val = 100
+            return int(val) if p_type == "integer" else float(val)
 
+        # 4. Boolean
         elif p_type == "boolean":
             return True
 
+        # 5. Array
         elif p_type == "array":
             items_schema = prop_schema.get("items", {})
             return [SchemaFuzzer.generate_valid_value(items_schema, prop_name)]
 
+        # 6. Object
         elif p_type == "object":
             return SchemaFuzzer.generate_valid_payload(prop_schema)
 
@@ -67,12 +100,11 @@ class SchemaFuzzer:
 
     @classmethod
     def generate_valid_payload(cls, schema: dict[str, Any] | None) -> dict[str, Any]:
-        """Generates a valid object dictionary satisfying the schema."""
+        """Generates a valid object dictionary satisfying all schema constraints."""
         if not schema or not isinstance(schema, dict):
             return {}
 
         properties = schema.get("properties", {})
-        required = set(schema.get("required", []))
         payload = {}
 
         for prop_name, prop_schema in properties.items():
@@ -87,7 +119,7 @@ class SchemaFuzzer:
         cls, schema: dict[str, Any] | None
     ) -> list[tuple[str, dict[str, Any]]]:
         """
-        Generates boundary cases: empty strings, zero, oversized numbers.
+        Generates boundary cases: empty strings, zero, oversized numbers, min/max edges.
         Returns list of (case_description, mutated_payload).
         """
         if not schema or not isinstance(schema, dict):
@@ -155,7 +187,7 @@ class SchemaFuzzer:
     def generate_negative_cases(
         cls, schema: dict[str, Any] | None
     ) -> list[tuple[str, dict[str, Any]]]:
-        """Generates payload variants with incorrect data types (e.g. string for integer)."""
+        """Generates payload variants with incorrect data types and enum violations."""
         if not schema or not isinstance(schema, dict):
             return []
 
@@ -167,7 +199,15 @@ class SchemaFuzzer:
             if not isinstance(prop_schema, dict):
                 continue
             p_type = prop_schema.get("type", "string")
+            p_enum = prop_schema.get("enum")
 
+            # 1. Enum Violation
+            if p_enum and isinstance(p_enum, list) and len(p_enum) > 0:
+                p_copy = dict(base)
+                p_copy[prop_name] = "INVALID_ENUM_OPTION_XYZ"
+                cases.append((f"invalid enum value for '{prop_name}'", p_copy))
+
+            # 2. Type Violations
             if p_type in ("integer", "number"):
                 p_copy = dict(base)
                 p_copy[prop_name] = "invalid_string_not_number"

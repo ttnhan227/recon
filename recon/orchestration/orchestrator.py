@@ -17,6 +17,7 @@ from recon.common.models import (
     FailureCategory,
     RunSummary,
     TestCase,
+    TestCategory,
     TestResult,
     TestStatus,
 )
@@ -24,15 +25,17 @@ from recon.discovery.endpoint_detector import discover_application
 from recon.discovery.models import DiscoveredApplication
 from recon.llm.failure_analyzer import AIFailureAnalyzer
 from recon.llm.test_generator import AITestGenerator
+from recon.orchestration.state_pool import StatePool
 from recon.orchestration.worker_pool import WorkerPool
 from recon.persistence.database import DatabaseManager
 from recon.planning.generator import TestSuiteGenerator
+from recon.planning.schema_fuzzer import SchemaFuzzer
 from recon.reporting.html_reporter import HTMLReporter
 from recon.reporting.json_reporter import JSONReporter
 
 
 class TestOrchestrator:
-    """End-to-end Test Orchestration Coordinator."""
+    """End-to-end Test Orchestration Coordinator with DAG dependency chaining and dynamic auth."""
     __test__ = False
 
     def __init__(
@@ -53,8 +56,28 @@ class TestOrchestrator:
         self.ai_generator = AITestGenerator()
         self.external_api_client = external_api_client
 
+    def _extract_token_recursive(self, data: Any) -> str | None:
+        """Recursively inspects response data to locate JWT/Bearer tokens."""
+        if isinstance(data, dict):
+            # Direct matches
+            for token_key in ("accessToken", "access_token", "token", "jwt", "id_token", "bearerToken"):
+                if token_key in data and isinstance(data[token_key], str) and len(data[token_key]) > 20:
+                    return data[token_key]
+
+            # Nested traversal
+            for v in data.values():
+                res = self._extract_token_recursive(v)
+                if res:
+                    return res
+        elif isinstance(data, list):
+            for item in data:
+                res = self._extract_token_recursive(item)
+                if res:
+                    return res
+        return None
+
     async def _auto_authenticate(self, target_url: str, app: DiscoveredApplication) -> dict[str, str]:
-        """Attempts pre-flight synthetic registration and login to capture JWT token."""
+        """Attempts intelligent pre-flight schema-driven registration and login to capture dynamic JWT tokens."""
         auth_headers: dict[str, str] = {}
         base_url = target_url.rstrip("/")
 
@@ -71,55 +94,118 @@ class TestOrchestrator:
         if not login_ep and not register_ep:
             return auth_headers
 
-        test_email = f"recon.synthetic.{uuid.uuid4().hex[:6]}@example.com"
-        test_password = "AutoAuthP@ss123!"
+        test_email = f"recon.qa.{uuid.uuid4().hex[:6]}@enterprise.io"
+        test_password = "Password123!"
 
         async with httpx.AsyncClient(timeout=10.0, verify=False) as client:
-            # 1. Try Registration first if endpoint exists
+            # 1. Try Dynamic Registration first if endpoint exists
             if register_ep:
                 reg_url = urljoin(base_url + "/", register_ep.path.lstrip("/"))
-                reg_payload = {
-                    "email": test_email,
-                    "password": test_password,
-                    "display_name": "Recon QA Agent",
-                    "name": "Recon QA",
-                }
+                reg_payload = (
+                    SchemaFuzzer.generate_valid_payload(register_ep.request_body_schema)
+                    if register_ep.request_body_schema
+                    else {}
+                )
+                reg_payload["email"] = test_email
+                reg_payload["password"] = test_password
+                if "companyName" in reg_payload or not reg_payload:
+                    reg_payload["companyName"] = "Recon Enterprise QA"
+                if "fullName" in reg_payload:
+                    reg_payload["fullName"] = "Recon QA Tester"
+
                 try:
-                    await client.post(reg_url, json=reg_payload)
-                except Exception:
-                    pass
+                    reg_resp = await client.post(reg_url, json=reg_payload)
+                    if reg_resp.status_code in (200, 201):
+                        reg_data = reg_resp.json()
+                        token = self._extract_token_recursive(reg_data)
+                        if token:
+                            logger.info("Autonomous Auth: Captured JWT token directly from registration.")
+                            auth_headers["Authorization"] = f"Bearer {token}"
+                            StatePool.get_instance().auth_token = token
+                            return auth_headers
+                except Exception as e:
+                    logger.debug(f"Auto-registration attempt notice: {e}")
 
             # 2. Try Login
             if login_ep:
                 login_url = urljoin(base_url + "/", login_ep.path.lstrip("/"))
-                # Try JSON login
-                login_payload = {"email": test_email, "password": test_password, "username": test_email}
+                login_payload = (
+                    SchemaFuzzer.generate_valid_payload(login_ep.request_body_schema)
+                    if login_ep.request_body_schema
+                    else {}
+                )
+                login_payload["email"] = test_email
+                login_payload["password"] = test_password
+                if "username" in login_payload:
+                    login_payload["username"] = test_email
+
                 try:
                     resp = await client.post(login_url, json=login_payload)
                     if resp.status_code in (200, 201):
                         data = resp.json()
-                        token = data.get("access_token") or data.get("token") or data.get("jwt")
+                        token = self._extract_token_recursive(data)
                         if token:
-                            logger.info("Autonomous Auth: Captured JWT access token from login endpoint.")
+                            logger.info("Autonomous Auth: Captured JWT token from JSON login.")
                             auth_headers["Authorization"] = f"Bearer {token}"
+                            StatePool.get_instance().auth_token = token
                             return auth_headers
                 except Exception:
                     pass
 
-                # Try Form/OAuth2 password flow (e.g. for FastAPI OAuth2PasswordRequestForm)
+                # Try OAuth2 form urlencoded password flow
                 try:
                     resp = await client.post(login_url, data={"username": test_email, "password": test_password})
                     if resp.status_code in (200, 201):
                         data = resp.json()
-                        token = data.get("access_token") or data.get("token")
+                        token = self._extract_token_recursive(data)
                         if token:
                             logger.info("Autonomous Auth: Captured OAuth2 token from form login.")
                             auth_headers["Authorization"] = f"Bearer {token}"
+                            StatePool.get_instance().auth_token = token
                             return auth_headers
                 except Exception:
                     pass
 
         return auth_headers
+
+    def _sort_tests_dag(self, tests: list[TestCase]) -> list[TestCase]:
+        """
+        Orders test cases along a Directed Acyclic Graph (DAG) lifecycle:
+        1. Root POST / creation endpoints (populate StatePool with real IDs)
+        2. Happy Path GET / PUT detail queries (consume harvested IDs)
+        3. Boundary & Validation tests
+        4. Auth tests
+        5. Negative tests
+        6. Explicit 404 tests
+        7. Destructive DELETE tests
+        """
+        def _dag_weight(t: TestCase) -> int:
+            cat = t.category
+            method = t.method or "GET"
+            target = t.target or ""
+            has_param = "{" in target or "00000000" in target
+
+            if method == "POST" and not has_param and cat == TestCategory.HAPPY_PATH:
+                return 10  # Root Entity Creation First
+            elif cat == TestCategory.HAPPY_PATH and not has_param:
+                return 20  # General List Queries
+            elif cat == TestCategory.HAPPY_PATH and has_param and method != "DELETE":
+                return 30  # Detail Queries Using Harvested State
+            elif cat == TestCategory.BOUNDARY:
+                return 40
+            elif cat == TestCategory.VALIDATION:
+                return 50
+            elif cat == TestCategory.AUTHENTICATION:
+                return 60
+            elif cat == TestCategory.NEGATIVE:
+                return 70
+            elif cat == TestCategory.ERROR_HANDLING:
+                return 80
+            elif method == "DELETE":
+                return 90  # Cleanups Last
+            return 100
+
+        return sorted(tests, key=_dag_weight)
 
     async def run_pipeline(
         self,
@@ -136,13 +222,16 @@ class TestOrchestrator:
         """
         Full orchestration pipeline:
         1. Discover Application
-        2. Plan Test Suite
-        3. Execute Test Suite Concurrently
+        2. Plan Test Suite with DAG Ordering
+        3. Execute Test Suite Concurrently with Live State Chaining
         4. Classify Failures
         5. Apply AI Root-Cause Analysis
         6. Persist results
         7. Generate JSON & HTML reports
         """
+        # Reset runtime DAG state pool
+        StatePool.get_instance().reset()
+
         run_id = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S") + "-" + uuid.uuid4().hex[:6]
         current_run_id.set(run_id)
         started_at = datetime.now(timezone.utc)
@@ -209,6 +298,9 @@ class TestOrchestrator:
                     for p in exclude_paths
                 )
             ]
+
+        # Apply DAG Topological Ordering
+        tests_to_run = self._sort_tests_dag(tests_to_run)
 
         # 2. Execute tests concurrently
         test_map = {t.id: t for t in tests_to_run}

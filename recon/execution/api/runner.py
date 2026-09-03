@@ -20,10 +20,11 @@ from recon.common.models import (
 )
 from recon.common.security import redact_headers, redact_sensitive_data, validate_target_url
 from recon.execution.api.assertions import evaluate_assertion
+from recon.orchestration.state_pool import StatePool
 
 
 class APITestRunner:
-    """Deterministic HTTP API test execution engine."""
+    """Deterministic HTTP API test execution engine with DAG state chaining."""
 
     def __init__(self, client: httpx.AsyncClient | None = None):
         self._external_client = client
@@ -50,6 +51,7 @@ class APITestRunner:
                 step_res, trace, error_detail = await self._execute_step(
                     client=client_to_use,
                     step=step,
+                    test=test,
                     max_retries=test.retries,
                 )
                 step_results.append(step_res)
@@ -103,14 +105,22 @@ class APITestRunner:
         self,
         client: httpx.AsyncClient,
         step: Any,
+        test: TestCase | None = None,
         max_retries: int = 0,
     ) -> tuple[StepResult, HTTPTrace | None, dict[str, Any]]:
-        """Executes a single HTTP step with retries and assertion evaluations."""
+        """Executes a single HTTP step with dynamic DAG state substitution, retries and assertion evaluations."""
+        state_pool = StatePool.get_instance()
         endpoint = step.endpoint or ""
         method = (step.method or "GET").upper()
         headers = dict(step.headers)
         params = dict(step.params)
         body = step.body
+
+        # Dynamic State Substitution (only for Happy Path and exploratory tests, preserving explicit 404/negative test inputs)
+        is_happy = test and test.category.value in ("happy_path", "exploratory")
+        if is_happy:
+            endpoint = state_pool.substitute_url(endpoint)
+            body = state_pool.substitute_payload(body)
 
         # Validate URL security / SSRF
         validate_target_url(endpoint)
@@ -179,6 +189,9 @@ class APITestRunner:
         json_body: Any = None
         try:
             json_body = response.json()
+            # Harvest entities into StatePool for downstream DAG tests
+            if resp_status in (200, 201):
+                state_pool.harvest(json_body)
         except Exception:
             json_body = None
 
