@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import os
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -18,6 +17,7 @@ class BrowserEvidenceCollector:
         self.console_logs: list[ConsoleLog] = []
         self.network_errors: list[NetworkError] = []
         self.screenshots: list[ScreenshotEvidence] = []
+        self.page_errors: list[str] = []
 
     def handle_console(self, msg: Any) -> None:
         """Playwright console event callback."""
@@ -33,6 +33,19 @@ class BrowserEvidenceCollector:
             )
         )
 
+    def handle_page_error(self, exc: Any) -> None:
+        """Playwright pageerror event callback for uncaught JS runtime exceptions."""
+        err_msg = str(exc)
+        self.page_errors.append(err_msg)
+        self.console_logs.append(
+            ConsoleLog(
+                level="error",
+                text=f"Uncaught Exception: {err_msg}",
+                location=None,
+                timestamp=datetime.now(timezone.utc),
+            )
+        )
+
     def handle_request_failed(self, req: Any) -> None:
         """Playwright requestfailed event callback."""
         failure_text = str(req.failure) if hasattr(req, "failure") else "Request failed"
@@ -42,10 +55,12 @@ class BrowserEvidenceCollector:
             status_code = res.status if res else None
         except Exception:
             status_code = None
+        req_url = str(getattr(req, "url", ""))
+        req_method = str(getattr(req, "method", "GET"))
         self.network_errors.append(
             NetworkError(
-                url=url,
-                method=method,
+                url=req_url,
+                method=req_method,
                 error_text=str(failure_text),
                 status_code=status_code,
                 timestamp=datetime.now(timezone.utc),

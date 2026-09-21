@@ -1,6 +1,4 @@
-import pytest
 from recon.common.models import (
-    AssertionResult,
     AssertionType,
     FailureCategory,
     FailureEvidence,
@@ -8,8 +6,6 @@ from recon.common.models import (
     StepAssertion,
     TestCase,
     TestCategory,
-    TestResult,
-    TestStatus,
     TestStep,
     TestType,
 )

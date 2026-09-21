@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 import re
-from typing import Any
 
 from recon.analysis.rca_engine import RootCauseAnalyzer
 from recon.common.logging import logger

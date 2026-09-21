@@ -53,7 +53,11 @@ class AIPatchGenerator:
     ) -> ProposedPatch | None:
         """Generates a proposed patch diff for the located file context."""
         ev = result.failure_evidence
-        fail_msg = ev.message if ev else (result.step_results[0].error_message if result.step_results else "Unknown error")
+        fail_msg = (
+            ev.message
+            if ev
+            else (result.step_results[0].error_message if result.step_results else "Unknown error")
+        )
         http_trace = ev.http_traces[0] if (ev and ev.http_traces) else None
 
         evidence_payload = {
@@ -97,7 +101,9 @@ Please fix the defect so the endpoint handles this edge-case gracefully without 
             modified_content = data.get("modified_full_content", "")
 
             if not modified_content or modified_content.strip() == context.full_content.strip():
-                logger.warning(f"Patch generator produced empty or identical content for {context.relative_path}")
+                logger.warning(
+                    f"Patch generator produced empty or identical content for {context.relative_path}"
+                )
                 return None
 
             # Generate unified diff

@@ -1,11 +1,7 @@
 from __future__ import annotations
 
-import json
-from datetime import datetime, timezone
-from pathlib import Path
-from typing import Any
+from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
-from sqlalchemy import select, desc
 
 from recon.common.config import settings
 from recon.common.models import RunSummary, TestResult
@@ -84,7 +80,7 @@ class DatabaseManager:
             res = await session.execute(stmt)
             rec = res.scalars().first()
             if rec and rec.summary_json:
-                return RunSummary.model_validate_json(rec.summary_json)
+                return RunSummary.model_validate_json(str(rec.summary_json))
             return None
 
     async def get_run_results(self, run_id: str) -> list[TestResult]:
@@ -94,7 +90,7 @@ class DatabaseManager:
             stmt = select(TestResultRecord).where(TestResultRecord.run_id == run_id)
             res = await session.execute(stmt)
             records = res.scalars().all()
-            return [TestResult.model_validate_json(r.result_json) for r in records]
+            return [TestResult.model_validate_json(str(r.result_json)) for r in records]
 
     async def list_runs(self, limit: int = 10) -> list[RunSummary]:
         """Lists recent test runs."""
@@ -106,5 +102,5 @@ class DatabaseManager:
             runs = []
             for r in records:
                 if r.summary_json:
-                    runs.append(RunSummary.model_validate_json(r.summary_json))
+                    runs.append(RunSummary.model_validate_json(str(r.summary_json)))
             return runs

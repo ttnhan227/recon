@@ -3,20 +3,17 @@ from __future__ import annotations
 import json
 import re
 from pathlib import Path
-from typing import Callable
 
 from rich.panel import Panel
 from rich.prompt import Confirm
 from rich.syntax import Syntax
-from rich.table import Table
 
 from recon.common.config import get_project_slug, settings
-from recon.common.logging import console, logger
-from recon.common.models import FailureCategory, TestCase, TestResult, TestStatus
-from recon.execution.api.runner import APITestRunner
+from recon.common.logging import console
+from recon.common.models import TestResult, TestStatus
 from recon.healing.applier import PatchApplier
-from recon.healing.locator import CodeLocator, LocatedContext
-from recon.healing.patcher import AIPatchGenerator, ProposedPatch
+from recon.healing.locator import CodeLocator
+from recon.healing.patcher import AIPatchGenerator
 from recon.persistence.database import DatabaseManager
 
 
@@ -34,13 +31,21 @@ class SelfHealingEngine:
         self.applier = PatchApplier()
 
     async def load_results(self, target_or_run_id: str = "latest") -> list[TestResult]:
-        """Loads test results from centralized or local reports, or SQLite database."""
+        """Loads test results from centralized or local reports, directories, or SQLite database."""
         path = Path(target_or_run_id)
         if path.exists() and path.is_file():
             data = json.loads(path.read_text(encoding="utf-8"))
             if isinstance(data, dict) and "results" in data:
                 data = data["results"]
             return [TestResult.model_validate(item) for item in data]
+
+        if path.exists() and path.is_dir():
+            for cand in (path / "results.json", path / "report.json"):
+                if cand.exists():
+                    data = json.loads(cand.read_text(encoding="utf-8"))
+                    if isinstance(data, dict) and "results" in data:
+                        data = data["results"]
+                    return [TestResult.model_validate(item) for item in data]
 
         if target_or_run_id == "latest":
             # 1. Check centralized project reports
@@ -60,9 +65,28 @@ class SelfHealingEngine:
                     data = data["results"]
                 return [TestResult.model_validate(item) for item in data]
 
+        # Check local ./reports/run-{id} or ./reports/{id}
+        for cand_dir in (
+            Path("./reports") / target_or_run_id,
+            Path("./reports") / f"run-{target_or_run_id}",
+            Path("./reports") / target_or_run_id.removeprefix("run-"),
+        ):
+            if cand_dir.exists() and cand_dir.is_dir():
+                for cand_file in (cand_dir / "results.json", cand_dir / "report.json"):
+                    if cand_file.exists():
+                        data = json.loads(cand_file.read_text(encoding="utf-8"))
+                        if isinstance(data, dict) and "results" in data:
+                            data = data["results"]
+                        return [TestResult.model_validate(item) for item in data]
+
         db = DatabaseManager()
         try:
-            return await db.get_run_results(target_or_run_id)
+            results = await db.get_run_results(target_or_run_id)
+            if not results and target_or_run_id.startswith("run-"):
+                results = await db.get_run_results(target_or_run_id.removeprefix("run-"))
+            if not results and not target_or_run_id.startswith("run-"):
+                results = await db.get_run_results(f"run-{target_or_run_id}")
+            return results
         finally:
             await db.close()
 
@@ -83,7 +107,8 @@ class SelfHealingEngine:
     ) -> int:
         """Processes failing tests with deduplication, generates patches, and optionally applies/verifies them."""
         all_failed = [
-            r for r in results
+            r
+            for r in results
             if r.status in (TestStatus.FAILED, TestStatus.ERROR)
             and (not test_id_filter or r.test_id == test_id_filter)
         ]
@@ -120,39 +145,53 @@ class SelfHealingEngine:
                 continue
 
             method, path = mp
-            console.print(f"[bold yellow]Searching source code for endpoint:[/bold yellow] [bold]{method} {path}[/bold] ({res.test_id})")
+            console.print(
+                f"[bold yellow]Searching source code for endpoint:[/bold yellow] [bold]{method} {path}[/bold] ({res.test_id})"
+            )
 
             contexts = self.locator.locate_endpoint(method, path)
             if not contexts:
-                console.print(f"  [dim red]✗ Could not locate handler file in repository for {method} {path}[/dim red]\n")
+                console.print(
+                    f"  [dim red]✗ Could not locate handler file in repository for {method} {path}[/dim red]\n"
+                )
                 continue
 
             best_ctx = contexts[0]
-            console.print(f"  [green]✓ Located handler:[/green] [bold]{best_ctx.relative_path}[/bold] (line {best_ctx.line_number})")
+            console.print(
+                f"  [green]✓ Located handler:[/green] [bold]{best_ctx.relative_path}[/bold] (line {best_ctx.line_number})"
+            )
 
             with console.status(f"[bold green]Synthesizing patch for {res.test_id}..."):
                 patch = await self.patch_generator.generate_patch(res, best_ctx)
 
             if not patch or not patch.diff.strip():
-                console.print(f"  [yellow]⚠ AI could not produce a valid diff for {best_ctx.relative_path}[/yellow]\n")
+                console.print(
+                    f"  [yellow]⚠ AI could not produce a valid diff for {best_ctx.relative_path}[/yellow]\n"
+                )
                 continue
 
             # Render Diff in Terminal
-            console.print(Panel(
-                Syntax(patch.diff, "diff", theme="monokai", line_numbers=False),
-                title=f"[bold green]Proposed Fix for {res.test_id}: {best_ctx.relative_path}[/bold green]",
-                subtitle=f"[dim]{patch.explanation}[/dim]",
-                border_style="cyan",
-            ))
+            console.print(
+                Panel(
+                    Syntax(patch.diff, "diff", theme="monokai", line_numbers=False),
+                    title=f"[bold green]Proposed Fix for {res.test_id}: {best_ctx.relative_path}[/bold green]",
+                    subtitle=f"[dim]{patch.explanation}[/dim]",
+                    border_style="cyan",
+                )
+            )
 
             should_apply = auto_apply
             if not auto_apply:
-                should_apply = Confirm.ask(f"Apply this fix to [bold]{best_ctx.relative_path}[/bold]?", default=False)
+                should_apply = Confirm.ask(
+                    f"Apply this fix to [bold]{best_ctx.relative_path}[/bold]?", default=False
+                )
 
             if should_apply:
                 backup = self.applier.apply_patch(patch)
                 if backup:
-                    console.print(f"[bold green]✓ Patch successfully applied to {best_ctx.relative_path}[/bold green]")
+                    console.print(
+                        f"[bold green]✓ Patch successfully applied to {best_ctx.relative_path}[/bold green]"
+                    )
                     fixed_count += 1
 
                     if auto_verify and res.failure_evidence and res.failure_evidence.http_traces:
@@ -161,22 +200,33 @@ class SelfHealingEngine:
                         # Minimal re-run check
                         try:
                             import httpx
+
                             async with httpx.AsyncClient(timeout=10.0) as client:
                                 resp = await client.request(
                                     method=method,
                                     url=trace.request_url,
                                     headers=trace.request_headers,
-                                    json=trace.request_body if isinstance(trace.request_body, (dict, list)) else None,
-                                    content=trace.request_body if isinstance(trace.request_body, str) else None,
+                                    json=trace.request_body
+                                    if isinstance(trace.request_body, (dict, list))
+                                    else None,
+                                    content=trace.request_body
+                                    if isinstance(trace.request_body, str)
+                                    else None,
                                 )
                                 if resp.status_code != 500:
-                                    console.print(f"[bold green]✓ VERIFICATION PASSED: Endpoint returned HTTP {resp.status_code} (Clean response, no 500 crash!)[/bold green]\n")
+                                    console.print(
+                                        f"[bold green]✓ VERIFICATION PASSED: Endpoint returned HTTP {resp.status_code} (Clean response, no 500 crash!)[/bold green]\n"
+                                    )
                                 else:
-                                    console.print(f"[bold yellow]⚠ Verification returned HTTP 500: Further refinements may be needed.[/bold yellow]\n")
+                                    console.print(
+                                        "[bold yellow]⚠ Verification returned HTTP 500: Further refinements may be needed.[/bold yellow]\n"
+                                    )
                         except Exception as ve:
                             console.print(f"[dim]Verification ping completed: {ve}[/dim]\n")
             else:
                 console.print(f"[dim]Skipped applying patch for {res.test_id}[/dim]\n")
 
-        console.print(f"[bold cyan]Self-Healing Run Completed:[/bold cyan] {fixed_count} file(s) updated.")
+        console.print(
+            f"[bold cyan]Self-Healing Run Completed:[/bold cyan] {fixed_count} file(s) updated."
+        )
         return fixed_count

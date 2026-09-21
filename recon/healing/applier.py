@@ -51,13 +51,17 @@ class PatchApplier:
 
         # Pre-Apply AST / Syntax Gate: Reject immediately if syntax is broken
         if not PatchApplier.validate_syntax(patch.modified_content, file_path.suffix):
-            logger.error(f"Rejecting patch for {file_path.name}: Failed pre-apply syntax compilation check. Code was untouched.")
+            logger.error(
+                f"Rejecting patch for {file_path.name}: Failed pre-apply syntax compilation check. Code was untouched."
+            )
             return None
 
         # Create centralized backup in ~/.recon/backups/{project_slug}/
         backup_path = PatchApplier.get_backup_path(file_path)
+        meta_path = backup_path.with_suffix(".meta")
         try:
             shutil.copy2(file_path, backup_path)
+            meta_path.write_text(json.dumps({"target_file": str(file_path)}), encoding="utf-8")
             # Write modified content
             file_path.write_text(patch.modified_content, encoding="utf-8")
 
@@ -66,11 +70,15 @@ class PatchApplier:
                 try:
                     ast.parse(file_path.read_text(encoding="utf-8"))
                 except SyntaxError:
-                    logger.error(f"Post-write syntax check failed on {file_path}. Rolling back immediately!")
+                    logger.error(
+                        f"Post-write syntax check failed on {file_path}. Rolling back immediately!"
+                    )
                     shutil.copy2(backup_path, file_path)
                     return None
 
-            logger.info(f"Applied verified patch to {file_path}. Centralized backup saved at {backup_path}")
+            logger.info(
+                f"Applied verified patch to {file_path}. Centralized backup saved at {backup_path}"
+            )
             return backup_path
         except Exception as e:
             logger.error(f"Failed to apply patch to {file_path}: {e}")
@@ -86,15 +94,30 @@ class PatchApplier:
             logger.error(f"Backup file not found: {b_path}")
             return False
 
+        t_path: Path | None = None
         if target_file_path:
             t_path = Path(target_file_path).resolve()
         else:
-            orig_name = b_path.name.replace(".recon.bak", "")
-            t_path = b_path.with_name(orig_name)
+            meta_path = b_path.with_suffix(".meta")
+            if meta_path.exists():
+                try:
+                    meta_data = json.loads(meta_path.read_text(encoding="utf-8"))
+                    raw_target = meta_data.get("target_file")
+                    if raw_target:
+                        t_path = Path(raw_target).resolve()
+                except Exception:
+                    t_path = None
+
+            if not t_path:
+                orig_name = b_path.name.replace(".recon.bak", "")
+                t_path = b_path.with_name(orig_name)
 
         try:
             shutil.copy2(b_path, t_path)
-            b_path.unlink()
+            b_path.unlink(missing_ok=True)
+            meta_path = b_path.with_suffix(".meta")
+            if meta_path.exists():
+                meta_path.unlink(missing_ok=True)
             logger.info(f"Rolled back {t_path} from backup.")
             return True
         except Exception as e:

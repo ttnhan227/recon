@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import ipaddress
 import re
-import socket
 from typing import Any
 from urllib.parse import urlparse
 
@@ -28,10 +27,15 @@ def is_safe_target_url(url: str, allow_localhost: bool = True) -> tuple[bool, st
 
     # Check blocked host list
     if hostname.lower() in [h.lower() for h in settings.blocked_hosts]:
-        return False, f"Target host '{hostname}' is in the blocked host list (cloud metadata/restricted)."
+        return (
+            False,
+            f"Target host '{hostname}' is in the blocked host list (cloud metadata/restricted).",
+        )
 
     # Check allowed hosts if specified
-    if settings.allowed_hosts and hostname.lower() not in [h.lower() for h in settings.allowed_hosts]:
+    if settings.allowed_hosts and hostname.lower() not in [
+        h.lower() for h in settings.allowed_hosts
+    ]:
         return False, f"Target host '{hostname}' is not in the allowed hosts whitelist."
 
     # Fast path for localhost and standard test hostnames

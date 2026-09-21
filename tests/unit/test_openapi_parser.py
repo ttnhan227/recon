@@ -1,4 +1,3 @@
-import pytest
 from recon.discovery.openapi import OpenAPIParser
 
 SAMPLE_OPENAPI_SPEC = {
@@ -10,9 +9,7 @@ SAMPLE_OPENAPI_SPEC = {
                 "summary": "Create user",
                 "requestBody": {
                     "content": {
-                        "application/json": {
-                            "schema": {"$ref": "#/components/schemas/UserCreate"}
-                        }
+                        "application/json": {"schema": {"$ref": "#/components/schemas/UserCreate"}}
                     }
                 },
                 "responses": {

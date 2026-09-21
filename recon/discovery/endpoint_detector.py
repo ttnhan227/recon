@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 from urllib.parse import urljoin
+
 import httpx
 
 from recon.common.logging import logger
+from recon.common.security import validate_target_url
 from recon.discovery.models import DiscoveredApplication
 from recon.discovery.openapi import OpenAPIParser
 from recon.discovery.web_crawler import WebCrawler
@@ -26,10 +28,13 @@ async def discover_application(
 ) -> DiscoveredApplication:
     """
     Main entry point for discovery.
-    1. If spec_path_or_url is provided, parses it as OpenAPI.
-    2. Otherwise probes target_url for OpenAPI JSON endpoints.
-    3. If browser is enabled or no OpenAPI spec is found, crawls web pages.
+    1. Validates target_url for security / SSRF.
+    2. If spec_path_or_url is provided, parses it as OpenAPI.
+    3. Otherwise probes target_url for OpenAPI JSON endpoints.
+    4. If browser is enabled or no OpenAPI spec is found, crawls web pages.
     """
+    validate_target_url(target_url)
+
     # 1. Explicit spec
     if spec_path_or_url:
         if spec_path_or_url.startswith("http://") or spec_path_or_url.startswith("https://"):
@@ -56,7 +61,10 @@ async def discover_application(
             probe_url = urljoin(base + "/", probe.lstrip("/"))
             try:
                 resp = await client.get(probe_url)
-                if resp.status_code == 200 and ("json" in resp.headers.get("content-type", "") or resp.text.strip().startswith("{")):
+                if resp.status_code == 200 and (
+                    "json" in resp.headers.get("content-type", "")
+                    or resp.text.strip().startswith("{")
+                ):
                     logger.info(f"Auto-detected OpenAPI specification at {probe_url}")
                     parser = await OpenAPIParser.from_url(probe_url)
                     app = parser.parse(base_url=base)

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import re
 from typing import Any
 from urllib.parse import urljoin
 
@@ -18,6 +17,7 @@ from recon.planning.schema_fuzzer import SchemaFuzzer
 
 class TestSuiteGenerator:
     """Generates deterministic API and Browser test suites from discovered application assets."""
+
     __test__ = False
 
     def __init__(self, app: DiscoveredApplication, default_headers: dict[str, str] | None = None):
@@ -53,7 +53,6 @@ class TestSuiteGenerator:
     def _generate_endpoint_tests(self, ep: DiscoveredEndpoint) -> list[TestCase]:
         tests: list[TestCase] = []
         base_url = self.app.target_url.rstrip("/")
-        full_url = urljoin(base_url + "/", ep.path.lstrip("/"))
 
         # Replace path parameters with valid format-aware sample values
         sample_path = ep.path
@@ -84,7 +83,9 @@ class TestSuiteGenerator:
             if ep.request_body_schema
             else None
         )
-        expected_status = [200, 201, 204] if ep.method in ("GET", "POST", "PUT", "PATCH", "DELETE") else [200]
+        expected_status = (
+            [200, 201, 204] if ep.method in ("GET", "POST", "PUT", "PATCH", "DELETE") else [200]
+        )
 
         happy_assertions = [
             StepAssertion(
@@ -127,7 +128,8 @@ class TestSuiteGenerator:
             TestCase(
                 id=self._next_id("API"),
                 name=f"[{ep.method} {ep.path}] Happy Path - Valid Request",
-                description=ep.summary or f"Verify {ep.method} {ep.path} succeeds with valid payload",
+                description=ep.summary
+                or f"Verify {ep.method} {ep.path} succeeds with valid payload",
                 category=TestCategory.HAPPY_PATH,
                 test_type=TestType.API,
                 target=endpoint_url,
@@ -175,7 +177,7 @@ class TestSuiteGenerator:
         # --- C. BOUNDARY TESTS ---
         if ep.request_body_schema:
             boundary_cases = SchemaFuzzer.generate_boundary_payloads(ep.request_body_schema)
-            for desc, b_body in boundary_cases[:3]:  # Top 3 boundary cases
+            for desc, b_body in boundary_cases[:8]:
                 b_step = TestStep(
                     name=f"Boundary - {desc}",
                     step_type="http_request",
@@ -210,7 +212,7 @@ class TestSuiteGenerator:
         # --- D. NEGATIVE TESTS (Type Violations) ---
         if ep.request_body_schema:
             neg_cases = SchemaFuzzer.generate_negative_cases(ep.request_body_schema)
-            for desc, neg_body in neg_cases[:2]:
+            for desc, neg_body in neg_cases[:6]:
                 neg_step = TestStep(
                     name=f"Negative - {desc}",
                     step_type="http_request",
@@ -243,7 +245,12 @@ class TestSuiteGenerator:
                 )
 
         # --- E. AUTHENTICATION & AUTHORIZATION TESTS ---
-        if ep.security_schemes or "admin" in ep.path.lower() or "secure" in ep.path.lower() or "secret" in ep.path.lower():
+        if (
+            ep.security_schemes
+            or "admin" in ep.path.lower()
+            or "secure" in ep.path.lower()
+            or "secret" in ep.path.lower()
+        ):
             # Unauthenticated access attempt
             unauth_step = TestStep(
                 name=f"{ep.method} {ep.path} - Unauthenticated Call",

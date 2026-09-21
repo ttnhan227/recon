@@ -1,14 +1,9 @@
-import pytest
 from recon.analysis.classifier import DeterministicFailureClassifier
 from recon.common.models import (
-    AssertionResult,
-    AssertionType,
     ConsoleLog,
     FailureCategory,
     FailureEvidence,
     HTTPTrace,
-    StepResult,
-    TestCase,
     TestCategory,
     TestResult,
     TestStatus,
@@ -73,7 +68,10 @@ def test_classify_javascript_console_error():
             failure_category=FailureCategory.UNKNOWN,
             message="Uncaught JS error",
             console_errors=[
-                ConsoleLog(level="error", text="Uncaught TypeError: Cannot read properties of undefined (reading 'token')")
+                ConsoleLog(
+                    level="error",
+                    text="Uncaught TypeError: Cannot read properties of undefined (reading 'token')",
+                )
             ],
         ),
     )

@@ -1,14 +1,13 @@
 from __future__ import annotations
 
 import asyncio
-import json
 import time
 from datetime import datetime, timezone
 from typing import Any
+
 import httpx
 
-from recon.common.config import settings
-from recon.common.logging import current_test_id, logger
+from recon.common.logging import current_test_id
 from recon.common.models import (
     FailureCategory,
     FailureEvidence,
@@ -54,6 +53,7 @@ class APITestRunner:
                     test=test,
                     max_retries=test.retries,
                 )
+                retries_done += error_detail.get("retries_attempted", 0)
                 step_results.append(step_res)
                 if trace:
                     http_traces.append(trace)
@@ -116,10 +116,18 @@ class APITestRunner:
         params = dict(step.params)
         body = step.body
 
-        # Dynamic State Substitution (only for Happy Path and exploratory tests, preserving explicit 404/negative test inputs)
-        is_happy = test and test.category.value in ("happy_path", "exploratory")
-        if is_happy:
+        # Dynamic State Substitution
+        # Substitute URL path params / harvested entity IDs for all tests except explicit 404 error handling tests
+        cat_str = (
+            (test.category.value if hasattr(test.category, "value") else str(test.category)).upper()
+            if test and test.category
+            else ""
+        )
+        if cat_str != "ERROR_HANDLING":
             endpoint = state_pool.substitute_url(endpoint)
+
+        # Dynamic Payload Substitution (for Happy Path, exploratory, and regression tests)
+        if cat_str in ("HAPPY_PATH", "EXPLORATORY", "REGRESSION"):
             body = state_pool.substitute_payload(body)
 
         # Validate URL security / SSRF
@@ -134,7 +142,9 @@ class APITestRunner:
             try:
                 # Prepare JSON body if dict or list
                 json_kwarg = body if isinstance(body, (dict, list)) else None
-                content_kwarg = str(body).encode() if body is not None and json_kwarg is None else None
+                content_kwarg = (
+                    str(body).encode() if body is not None and json_kwarg is None else None
+                )
 
                 req_start = time.perf_counter()
                 response = await client.request(
@@ -173,13 +183,19 @@ class APITestRunner:
             return (
                 StepResult(
                     step_name=step.name,
-                    status=TestStatus.FAILED if isinstance(last_exception, httpx.TimeoutException) else TestStatus.ERROR,
+                    status=TestStatus.FAILED
+                    if isinstance(last_exception, httpx.TimeoutException)
+                    else TestStatus.ERROR,
                     duration_ms=round(step_duration, 2),
                     error_message=err_msg,
                     http_trace=err_trace,
                 ),
                 err_trace,
-                {"error": str(last_exception), "exception_type": type(last_exception).__name__},
+                {
+                    "error": str(last_exception),
+                    "exception_type": type(last_exception).__name__,
+                    "retries_attempted": attempt,
+                },
             )
 
         # Parse response
@@ -202,7 +218,9 @@ class APITestRunner:
             request_body=redact_sensitive_data(body),
             response_status=resp_status,
             response_headers=redact_headers(resp_headers),
-            response_body=redact_sensitive_data(json_body if json_body is not None else raw_text[:2000]),
+            response_body=redact_sensitive_data(
+                json_body if json_body is not None else raw_text[:2000]
+            ),
             latency_ms=round(latency_ms, 2),
         )
 
@@ -227,7 +245,7 @@ class APITestRunner:
                     failed_msgs.append(res.message)
 
         status = TestStatus.PASSED if step_passed else TestStatus.FAILED
-        err_msg = "; ".join(failed_msgs) if failed_msgs else None
+        step_err_msg: str | None = "; ".join(failed_msgs) if failed_msgs else None
 
         return (
             StepResult(
@@ -235,11 +253,11 @@ class APITestRunner:
                 status=status,
                 duration_ms=round(step_duration, 2),
                 assertion_results=assertion_results,
-                error_message=err_msg,
+                error_message=step_err_msg,
                 http_trace=trace,
             ),
             trace,
-            {"status_code": resp_status, "body": raw_text[:1000]},
+            {"status_code": resp_status, "body": raw_text[:1000], "retries_attempted": attempt},
         )
 
     def _determine_failure_category(

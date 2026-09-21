@@ -1,6 +1,8 @@
-import pytest
 from datetime import datetime, timezone
-from recon.common.models import RunSummary, TestCase, TestCategory, TestResult, TestStatus, TestType
+
+import pytest
+
+from recon.common.models import RunSummary, TestCategory, TestResult, TestStatus, TestType
 from recon.persistence.database import DatabaseManager
 
 

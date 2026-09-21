@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 from urllib.parse import urlparse
+
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -17,8 +18,24 @@ def get_recon_home() -> Path:
 def get_project_slug(target: str | None = None, cwd: Path | None = None) -> str:
     """Derives a clean project slug from current working directory or target URL."""
     generic_names = {
-        "projects", "workspace", "workspaces", "src", "app", "server", "client", "code",
-        "home", "users", "runner", "work", "documents", "desktop", "downloads", "tmp", "temp", "root"
+        "projects",
+        "workspace",
+        "workspaces",
+        "src",
+        "app",
+        "server",
+        "client",
+        "code",
+        "home",
+        "users",
+        "runner",
+        "work",
+        "documents",
+        "desktop",
+        "downloads",
+        "tmp",
+        "temp",
+        "root",
     }
 
     # 1. Check current working directory or explicit cwd first
@@ -56,14 +73,14 @@ def get_project_slug(target: str | None = None, cwd: Path | None = None) -> str:
 class ReconSettings(BaseSettings):
     model_config = SettingsConfigDict(
         env_prefix="RECON_",
-        env_file=str(Path.home() / ".recon" / ".env"),
+        env_file=(".env", str(Path.home() / ".recon" / ".env")),
         env_file_encoding="utf-8",
         extra="ignore",
     )
 
     # General
     app_name: str = "Recon QA Agent"
-    version: str = "0.1.2"
+    version: str = "0.2.0"
     log_level: str = "INFO"
     json_logs: bool = False
 
@@ -75,7 +92,9 @@ class ReconSettings(BaseSettings):
 
     # Paths & Persistence: Centralized in ~/.recon by default
     reports_dir: Path = Field(default_factory=lambda: get_recon_home() / "reports")
-    database_url: str = Field(default_factory=lambda: f"sqlite+aiosqlite:///{get_recon_home().as_posix()}/recon.db")
+    database_url: str = Field(
+        default_factory=lambda: f"sqlite+aiosqlite:///{get_recon_home().as_posix()}/recon.db"
+    )
     redis_url: str | None = None
 
     # Security
@@ -117,12 +136,16 @@ class ReconSettings(BaseSettings):
     )
 
     # LLM Settings
-    llm_provider: str = Field(default="mock")  # mock, gemini, openai, mistral, anthropic, custom / compatible
+    llm_provider: str = Field(
+        default="mock"
+    )  # mock, gemini, openai, mistral, anthropic, custom / compatible
     gemini_api_key: str | None = Field(default_factory=lambda: os.getenv("GEMINI_API_KEY"))
     openai_api_key: str | None = Field(default_factory=lambda: os.getenv("OPENAI_API_KEY"))
     mistral_api_key: str | None = Field(default_factory=lambda: os.getenv("MISTRAL_API_KEY"))
     anthropic_api_key: str | None = Field(default_factory=lambda: os.getenv("ANTHROPIC_API_KEY"))
-    llm_base_url: str | None = Field(default_factory=lambda: os.getenv("OPENAI_BASE_URL") or os.getenv("RECON_LLM_BASE_URL"))
+    llm_base_url: str | None = Field(
+        default_factory=lambda: os.getenv("OPENAI_BASE_URL") or os.getenv("RECON_LLM_BASE_URL")
+    )
     gemini_model: str = "gemini-2.5-flash"
     openai_model: str = "gpt-4o-mini"
     mistral_model: str = "mistral-small-latest"

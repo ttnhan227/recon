@@ -4,7 +4,6 @@ import os
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Sequence
 
 IGNORE_DIRS = {
     ".git",
@@ -52,18 +51,57 @@ class CodeLocator:
 
         # Clean endpoint path segments: e.g. "/api/v1/auth/login" -> ["auth", "login"]
         clean_path = endpoint_path.strip().split("?")[0]
-        # Remove parameter syntax like {id} or :id for flexible matching
-        path_segments = [seg for seg in clean_path.strip("/").split("/") if seg and not (seg.startswith("{") or seg.startswith(":"))]
+        # Remove parameter syntax like {id} or :id, numeric IDs, and UUIDs for flexible matching
+        path_segments = []
+        for seg in clean_path.strip("/").split("/"):
+            if not seg:
+                continue
+            if seg.startswith("{") or seg.startswith(":"):
+                continue
+            if seg.isdigit() or re.match(r"^[0-9a-fA-F\-]{8,}$", seg):
+                continue
+            path_segments.append(seg)
         last_segment = path_segments[-1] if path_segments else ""
 
         # Candidates regex patterns
-        # 1. FastAPI/Flask: @router.post("/login") or @app.post("/auth/login")
-        # 2. Express: router.post('/login', ...) or app.post('/login'
         patterns = []
+        clean_rel = clean_path.lstrip("/")
+        m_lower = re.escape(method_upper.lower())
+        if clean_rel:
+            esc_clean = re.escape(clean_rel)
+            patterns.append(
+                re.compile(
+                    r"""(?:@\w+|\bapp|\brouter)\."""
+                    + m_lower
+                    + r"""\s*\(\s*["']/?(?:"""
+                    + esc_clean
+                    + r""")["']""",
+                    re.IGNORECASE,
+                )
+            )
         if last_segment:
-            patterns.append(re.compile(rf"""@\w+\.{method_upper.lower()}\s*\(\s*["'](?:\w+/)*{re.escape(last_segment)}["']""", re.IGNORECASE))
-            patterns.append(re.compile(rf"""\.{method_upper.lower()}\s*\(\s*["'](?:\w+/)*{re.escape(last_segment)}["']""", re.IGNORECASE))
-            patterns.append(re.compile(rf"""["']/{re.escape(last_segment)}["']""", re.IGNORECASE))
+            esc_seg = re.escape(last_segment)
+            pat_str = (
+                r"""(?:@\w+|\bapp|\brouter)\."""
+                + m_lower
+                + r"""\s*\(\s*["']/?(?:[\w\-_/:{}]*/)?(?:"""
+                + esc_seg
+                + r""")(?:/\{[^}]+\}|/:\w+)?["']"""
+            )
+            patterns.append(re.compile(pat_str, re.IGNORECASE))
+            patterns.append(
+                re.compile(
+                    r"""\."""
+                    + m_lower
+                    + r"""\s*\(\s*["']/?(?:[\w\-_/:{}]*/)?(?:"""
+                    + esc_seg
+                    + r""")["']""",
+                    re.IGNORECASE,
+                )
+            )
+            patterns.append(
+                re.compile(r"""["']/(?:""" + esc_seg + r""")(?:/|\?|["'])""", re.IGNORECASE)
+            )
 
         # Search repository files
         for root, dirs, files in os.walk(self.repo_dir):
@@ -91,7 +129,9 @@ class CodeLocator:
                             # Detect function name if python
                             func_name = None
                             for sub_line in lines[line_idx : min(len(lines), line_idx + 10)]:
-                                fn_match = re.search(r"(?:async\s+)?def\s+([a-zA-Z0-9_]+)\s*\(", sub_line)
+                                fn_match = re.search(
+                                    r"(?:async\s+)?def\s+([a-zA-Z0-9_]+)\s*\(", sub_line
+                                )
                                 if fn_match:
                                     func_name = fn_match.group(1)
                                     break

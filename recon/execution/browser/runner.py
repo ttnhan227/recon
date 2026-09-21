@@ -6,13 +6,12 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from recon.common.logging import current_test_id, logger
+from recon.common.logging import current_test_id
 from recon.common.models import (
     AssertionResult,
     AssertionType,
     FailureCategory,
     FailureEvidence,
-    ScreenshotEvidence,
     StepResult,
     TestCase,
     TestResult,
@@ -66,8 +65,9 @@ class BrowserTestRunner:
                 )
                 page = await context.new_page()
 
-                # Attach listeners for console and network errors
+                # Attach listeners for console, page errors, and network errors
                 page.on("console", evidence_collector.handle_console)
+                page.on("pageerror", evidence_collector.handle_page_error)
                 page.on("requestfailed", evidence_collector.handle_request_failed)
 
                 for step in test.steps:
@@ -154,6 +154,7 @@ class BrowserTestRunner:
         step_start = time.perf_counter()
         stype = step.step_type
         timeout_ms = int(step.timeout_seconds * 1000)
+        initial_page_errors = len(evidence_collector.page_errors)
 
         try:
             if stype == "browser_navigate":
@@ -169,7 +170,9 @@ class BrowserTestRunner:
                 assertion_results = []
                 for a in step.assertions:
                     if a.assertion_type == AssertionType.STATUS_CODE:
-                        passed = status_code in (a.expected if isinstance(a.expected, list) else [a.expected])
+                        passed = status_code in (
+                            a.expected if isinstance(a.expected, list) else [a.expected]
+                        )
                         assertion_results.append(
                             AssertionResult(
                                 assertion_type=AssertionType.STATUS_CODE,
@@ -177,7 +180,9 @@ class BrowserTestRunner:
                                 target="status_code",
                                 expected=a.expected,
                                 actual=status_code,
-                                message=f"Page returned status {status_code}" if not passed else None,
+                                message=f"Page returned status {status_code}"
+                                if not passed
+                                else None,
                             )
                         )
 
@@ -215,6 +220,19 @@ class BrowserTestRunner:
                 # Brief pause for DOM reactions
                 await asyncio.sleep(0.3)
                 duration_ms = (time.perf_counter() - step_start) * 1000.0
+
+                new_errors = evidence_collector.page_errors[initial_page_errors:]
+                if new_errors:
+                    return (
+                        StepResult(
+                            step_name=step.name,
+                            status=TestStatus.FAILED,
+                            duration_ms=round(duration_ms, 2),
+                            error_message=f"Uncaught JavaScript exception: {new_errors[-1]}",
+                        ),
+                        True,
+                    )
+
                 return (
                     StepResult(
                         step_name=step.name,
@@ -225,7 +243,7 @@ class BrowserTestRunner:
                 )
 
             elif stype == "browser_screenshot":
-                screenshot = await evidence_collector.capture_screenshot(page, step.name)
+                await evidence_collector.capture_screenshot(page, step.name)
                 duration_ms = (time.perf_counter() - step_start) * 1000.0
                 return (
                     StepResult(
@@ -267,7 +285,10 @@ class BrowserTestRunner:
         err = (step_res.error_message or "").lower()
         if "timeout" in err:
             return FailureCategory.TIMEOUT
-        if any("typeerror" in c.text.lower() or "referenceerror" in c.text.lower() for c in console_logs):
+        if any(
+            "typeerror" in c.text.lower() or "referenceerror" in c.text.lower()
+            for c in console_logs
+        ):
             return FailureCategory.APPLICATION_ERROR
         if "assertion" in err:
             return FailureCategory.ASSERTION_FAILURE

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from typing import Any
 from recon.common.models import (
     FailureAnalysis,
     FailureCategory,
@@ -63,15 +62,21 @@ class RootCauseAnalyzer:
             facts.append(f"Browser console [{console_log.level}]: {console_log.text}")
 
         for net_err in evidence.network_errors:
-            facts.append(f"Browser network failure: {net_err.method} {net_err.url} - {net_err.error_text}")
+            facts.append(
+                f"Browser network failure: {net_err.method} {net_err.url} - {net_err.error_text}"
+            )
 
         # 2. Derive Hypotheses and Suggested Fixes
         if cat == FailureCategory.APPLICATION_ERROR:
             # Check for specific known failure patterns
-            body_text = str(evidence.http_traces[-1].response_body if evidence.http_traces else "").lower()
+            body_text = str(
+                evidence.http_traces[-1].response_body if evidence.http_traces else ""
+            ).lower()
             console_text = " ".join(c.text.lower() for c in evidence.console_errors)
 
-            if "currency" in body_text or (original_test and "currency" in original_test.name.lower()):
+            if "currency" in body_text or (
+                original_test and "currency" in original_test.name.lower()
+            ):
                 hypotheses.append(
                     Hypothesis(
                         hypothesis="Backend attempts to access 'currency' field on payment/order object without validating its presence.",
@@ -121,7 +126,9 @@ class RootCauseAnalyzer:
                     explanation="Endpoint responded with HTTP 403 Forbidden.",
                 )
             )
-            suggested_fix = "Grant required role/scope in identity provider or update endpoint RBAC policies."
+            suggested_fix = (
+                "Grant required role/scope in identity provider or update endpoint RBAC policies."
+            )
             confidence = 0.90
 
         elif cat == FailureCategory.VALIDATION_FAILURE:
@@ -165,7 +172,9 @@ class RootCauseAnalyzer:
                     explanation="Observed response differed from expected criteria in test specification.",
                 )
             )
-            suggested_fix = "Review expected test criteria against current application specifications."
+            suggested_fix = (
+                "Review expected test criteria against current application specifications."
+            )
 
         return FailureAnalysis(
             observed_facts=facts,

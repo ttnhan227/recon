@@ -1,5 +1,6 @@
-import pytest
 import httpx
+import pytest
+
 from recon.common.models import (
     AssertionType,
     StepAssertion,

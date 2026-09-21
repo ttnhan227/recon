@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 from typing import Any
-from urllib.parse import urljoin
+
 import httpx
 import yaml
 
@@ -42,12 +42,16 @@ class OpenAPIParser:
                 data = yaml.safe_load(content)
 
             if not isinstance(data, dict):
-                raise DiscoveryError(f"OpenAPI spec from {spec_url} is not a valid JSON/YAML object.")
+                raise DiscoveryError(
+                    f"OpenAPI spec from {spec_url} is not a valid JSON/YAML object."
+                )
 
             return cls(data, source_url=spec_url)
         except Exception as e:
             logger.error(f"Failed to fetch OpenAPI spec from {spec_url}: {e}")
-            raise DiscoveryError(f"Could not load OpenAPI specification from '{spec_url}': {e}") from e
+            raise DiscoveryError(
+                f"Could not load OpenAPI specification from '{spec_url}': {e}"
+            ) from e
 
     @classmethod
     def from_file(cls, file_path: str | Path) -> OpenAPIParser:
@@ -64,7 +68,9 @@ class OpenAPIParser:
                 data = yaml.safe_load(content)
 
             if not isinstance(data, dict):
-                raise DiscoveryError(f"OpenAPI spec in {file_path} is not a valid JSON/YAML dictionary.")
+                raise DiscoveryError(
+                    f"OpenAPI spec in {file_path} is not a valid JSON/YAML dictionary."
+                )
 
             return cls(data, source_url=str(p))
         except Exception as e:
@@ -239,7 +245,9 @@ class OpenAPIParser:
                         if "application/json" in content:
                             r_schema = content["application/json"].get("schema")
                             if r_schema:
-                                response_schemas[str(status_code)] = self._resolve_schema(r_schema) or {}
+                                response_schemas[str(status_code)] = (
+                                    self._resolve_schema(r_schema) or {}
+                                )
                         elif "schema" in resp_def:  # Swagger 2
                             response_schemas[str(status_code)] = (
                                 self._resolve_schema(resp_def["schema"]) or {}
@@ -257,7 +265,9 @@ class OpenAPIParser:
                         parameters=discovered_params,
                         request_body_schema=request_body_schema,
                         response_schemas=response_schemas,
-                        security_schemes=security_schemes if isinstance(security_schemes, list) else [],
+                        security_schemes=security_schemes
+                        if isinstance(security_schemes, list)
+                        else [],
                         tags=tags if isinstance(tags, list) else [],
                     )
                 )
@@ -268,5 +278,8 @@ class OpenAPIParser:
             version=version,
             spec_source=self.source_url or "openapi_dict",
             endpoints=endpoints,
-            metadata={"total_endpoints": len(endpoints), "openapi_version": self.spec.get("openapi", self.spec.get("swagger", "3.0"))},
+            metadata={
+                "total_endpoints": len(endpoints),
+                "openapi_version": self.spec.get("openapi", self.spec.get("swagger", "3.0")),
+            },
         )

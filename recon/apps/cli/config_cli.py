@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 from typing import Annotated, Optional
+
 import typer
 from rich.console import Console
 from rich.panel import Panel
@@ -12,7 +13,9 @@ from rich.table import Table
 from recon.common.config import settings
 
 console = Console()
-config_app = typer.Typer(name="config", help="Manage AI providers, API keys, and active model selection.")
+config_app = typer.Typer(
+    name="config", help="Manage AI providers, API keys, and active model selection."
+)
 
 GLOBAL_CONFIG_DIR = Path.home() / ".recon"
 GLOBAL_ENV_PATH = GLOBAL_CONFIG_DIR / ".env"
@@ -117,14 +120,18 @@ def list_providers():
     all_providers = ["gemini", "mistral", "openai", "anthropic", "ollama", "custom", "mock"]
 
     for p in all_providers:
-        is_active = (p == active_provider)
+        is_active = p == active_provider
         active_mark = "[bold green]* ACTIVE[/bold green]" if is_active else ""
 
         if p == "mock":
             status_str = "[green]READY (Built-in)[/green]"
             key_str = "[dim]N/A[/dim]"
         elif p == "ollama":
-            url_val = env_data.get("RECON_LLM_BASE_URL") or settings.llm_base_url or "http://localhost:11434/v1"
+            url_val = (
+                env_data.get("RECON_LLM_BASE_URL")
+                or settings.llm_base_url
+                or "http://localhost:11434/v1"
+            )
             status_str = "[green]READY (Local)[/green]" if is_active else "[dim]OPTIONAL[/dim]"
             key_str = f"[dim]{url_val}[/dim]"
         else:
@@ -150,11 +157,22 @@ def list_providers():
 
 @config_app.command("set-key")
 def set_key(
-    provider: Annotated[Optional[str], typer.Argument(help="Provider name: gemini, mistral, openai, anthropic, ollama")] = None,
-    key: Annotated[Optional[str], typer.Option("--key", "-k", help="API Key value (optional, prompts if omitted)")] = None,
+    provider: Annotated[
+        Optional[str],
+        typer.Argument(help="Provider name: gemini, mistral, openai, anthropic, ollama"),
+    ] = None,
+    key: Annotated[
+        Optional[str],
+        typer.Option("--key", "-k", help="API Key value (optional, prompts if omitted)"),
+    ] = None,
     model: Annotated[Optional[str], typer.Option("--model", "-m", help="Custom model name")] = None,
-    set_active: Annotated[bool, typer.Option("--use/--no-use", help="Set as the active provider")] = True,
-    local: Annotated[bool, typer.Option("--local", help="Save to local project .env instead of global ~/.recon/.env")] = False,
+    set_active: Annotated[
+        bool, typer.Option("--use/--no-use", help="Set as the active provider")
+    ] = True,
+    local: Annotated[
+        bool,
+        typer.Option("--local", help="Save to local project .env instead of global ~/.recon/.env"),
+    ] = False,
 ):
     """Interactively sets or updates an AI provider API key. Saved globally to ~/.recon/.env by default."""
     if not provider:
@@ -166,59 +184,84 @@ def set_key(
         console.print("  5. [bold cyan]Ollama[/bold cyan] (Local Offline LLMs)")
         console.print("  6. [bold white]Custom / Other[/bold white] (DeepSeek, Groq, OpenRouter)")
 
-        choice = Prompt.ask("Enter choice (1-6)", choices=["1", "2", "3", "4", "5", "6"], default="1")
-        mapping = {"1": "gemini", "2": "mistral", "3": "openai", "4": "anthropic", "5": "ollama", "6": "custom"}
+        choice = Prompt.ask(
+            "Enter choice (1-6)", choices=["1", "2", "3", "4", "5", "6"], default="1"
+        )
+        mapping = {
+            "1": "gemini",
+            "2": "mistral",
+            "3": "openai",
+            "4": "anthropic",
+            "5": "ollama",
+            "6": "custom",
+        }
         provider = mapping[choice]
 
     provider = provider.lower()
-    updates = {}
+    updates: dict[str, str] = {}
 
     if provider == "ollama":
         base_url = key or Prompt.ask("Enter Ollama Base URL", default="http://localhost:11434/v1")
-        updates["RECON_LLM_BASE_URL"] = base_url
+        updates["RECON_LLM_BASE_URL"] = str(base_url)
     else:
         env_var_name = PROVIDER_KEY_MAP.get(provider, f"{provider.upper()}_API_KEY")
         if not key:
-            key = Prompt.ask(f"Enter API Key for [bold]{provider.capitalize()}[/bold]", password=True)
+            key = Prompt.ask(
+                f"Enter API Key for [bold]{provider.capitalize()}[/bold]", password=True
+            )
         if not key:
             console.print("[red]Error: API Key cannot be empty.[/red]")
             raise typer.Exit(1)
-        updates[env_var_name] = key
+        updates[env_var_name] = str(key)
 
     if model:
-        updates[f"RECON_{provider.upper()}_MODEL"] = model
+        updates[f"RECON_{provider.upper()}_MODEL"] = str(model)
 
     if set_active:
         updates["RECON_LLM_PROVIDER"] = provider
 
     saved_path = update_env_file(updates, is_local=local)
-    scope_str = "Local project (.env)" if local else f"Global (~/.recon/.env)"
+    scope_str = "Local project (.env)" if local else "Global (~/.recon/.env)"
 
-    console.print(Panel(
-        f"[bold green]OK: Successfully configured {provider.capitalize()}![/bold green]\n\n"
-        f"  [dim]Provider:[/dim] [bold white]{provider}[/bold white]\n"
-        f"  [dim]Scope:[/dim]    [magenta]{scope_str}[/magenta]\n"
-        f"  [dim]Saved to:[/dim] [cyan]{saved_path.resolve()}[/cyan]\n"
-        f"  [dim]Active:[/dim]   [green]{'Yes (Active)' if set_active else 'No'}[/green]",
-        border_style="green",
-        title="AI Configuration Updated"
-    ))
+    console.print(
+        Panel(
+            f"[bold green]OK: Successfully configured {provider.capitalize()}![/bold green]\n\n"
+            f"  [dim]Provider:[/dim] [bold white]{provider}[/bold white]\n"
+            f"  [dim]Scope:[/dim]    [magenta]{scope_str}[/magenta]\n"
+            f"  [dim]Saved to:[/dim] [cyan]{saved_path.resolve()}[/cyan]\n"
+            f"  [dim]Active:[/dim]   [green]{'Yes (Active)' if set_active else 'No'}[/green]",
+            border_style="green",
+            title="AI Configuration Updated",
+        )
+    )
 
 
 @config_app.command("use")
 def use_provider(
-    provider: Annotated[str, typer.Argument(help="Provider name to activate: gemini, mistral, openai, anthropic, ollama, mock")],
-    local: Annotated[bool, typer.Option("--local", help="Save to local project .env instead of global ~/.recon/.env")] = False,
+    provider: Annotated[
+        str,
+        typer.Argument(
+            help="Provider name to activate: gemini, mistral, openai, anthropic, ollama, mock"
+        ),
+    ],
+    local: Annotated[
+        bool,
+        typer.Option("--local", help="Save to local project .env instead of global ~/.recon/.env"),
+    ] = False,
 ):
     """Quickly switches the active AI provider."""
     p = provider.lower()
     valid = ["gemini", "mistral", "openai", "anthropic", "claude", "ollama", "custom", "mock"]
     if p not in valid:
-        console.print(f"[red]Unknown provider '{provider}'. Valid choices: {', '.join(valid)}[/red]")
+        console.print(
+            f"[red]Unknown provider '{provider}'. Valid choices: {', '.join(valid)}[/red]"
+        )
         raise typer.Exit(1)
 
     if p == "claude":
         p = "anthropic"
 
     saved_path = update_env_file({"RECON_LLM_PROVIDER": p}, is_local=local)
-    console.print(f"[bold green]Switched active AI provider to:[/bold green] [bold cyan]{p.capitalize()}[/bold cyan] [dim]({saved_path})[/dim]")
+    console.print(
+        f"[bold green]Switched active AI provider to:[/bold green] [bold cyan]{p.capitalize()}[/bold cyan] [dim]({saved_path})[/dim]"
+    )

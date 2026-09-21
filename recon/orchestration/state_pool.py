@@ -11,7 +11,7 @@ class StatePool:
     _instance: StatePool | None = None
     _lock = threading.Lock()
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._store: dict[str, list[str]] = {
             "id": [],
             "accountId": [],
@@ -30,46 +30,94 @@ class StatePool:
                 cls._instance = cls()
             return cls._instance
 
-    def reset(self):
+    def reset(self) -> None:
         with self._lock:
             for k in self._store:
                 self._store[k].clear()
             self.auth_token = None
 
-    def store_entity(self, key: str, value: str):
+    def store_entity(self, key: str, value: str) -> None:
         if not value or not isinstance(value, str):
             return
-        if value.startswith("00000000-0000") or value.startswith("synthetic_") or value == "test_val":
+        if (
+            value.startswith("00000000-0000")
+            or value.startswith("synthetic_")
+            or value == "test_val"
+        ):
             return
 
         norm_key = key.lower().replace("_", "").replace("-", "")
         with self._lock:
+            # Store in specific normalized key list
+            if norm_key not in self._store:
+                self._store[norm_key] = []
+            if value not in self._store[norm_key]:
+                self._store[norm_key].insert(0, value)
+
+            # Store in predefined specific keys
             for registered_key in self._store:
-                if registered_key.lower() in norm_key or norm_key in registered_key.lower():
+                if registered_key == "id":
+                    continue
+                reg_norm = registered_key.lower().replace("_", "").replace("-", "")
+                if reg_norm == norm_key or reg_norm in norm_key or norm_key in reg_norm:
                     if value not in self._store[registered_key]:
                         self._store[registered_key].insert(0, value)
+
+            # Fallback collection
             if value not in self._store["id"]:
                 self._store["id"].insert(0, value)
 
     def get_latest(self, key: str) -> str | None:
         norm_key = key.lower().replace("_", "").replace("-", "")
         with self._lock:
+            # If directly requesting generic "id", return latest from id pool
+            if norm_key == "id":
+                return self._store["id"][0] if self._store.get("id") else None
+
+            # 1. Exact match on non-"id" keys
             for registered_key, values in self._store.items():
-                if (registered_key.lower() in norm_key or norm_key in registered_key.lower()) and values:
+                if registered_key == "id":
+                    continue
+                reg_norm = registered_key.lower().replace("_", "").replace("-", "")
+                if reg_norm == norm_key and values:
                     return values[0]
-            if self._store["id"]:
+
+            # 2. Substring match on specific non-"id" keys
+            for registered_key, values in self._store.items():
+                if registered_key == "id":
+                    continue
+                reg_norm = registered_key.lower().replace("_", "").replace("-", "")
+                if (reg_norm in norm_key or norm_key in reg_norm) and values:
+                    return values[0]
+
+            # 3. Fallback to generic "id"
+            if self._store.get("id"):
                 return self._store["id"][0]
         return None
 
     def get_all(self, key: str) -> list[str]:
         norm_key = key.lower().replace("_", "").replace("-", "")
         with self._lock:
-            for registered_key, values in self._store.items():
-                if registered_key.lower() in norm_key or norm_key in registered_key.lower():
-                    return list(values)
-        return list(self._store["id"])
+            if norm_key == "id":
+                return list(self._store.get("id", []))
 
-    def harvest(self, data: Any):
+            for registered_key, values in self._store.items():
+                if registered_key == "id":
+                    continue
+                reg_norm = registered_key.lower().replace("_", "").replace("-", "")
+                if reg_norm == norm_key and values:
+                    return list(values)
+
+            for registered_key, values in self._store.items():
+                if registered_key == "id":
+                    continue
+                reg_norm = registered_key.lower().replace("_", "").replace("-", "")
+                if (reg_norm in norm_key or norm_key in reg_norm) and values:
+                    return list(values)
+
+            return list(self._store.get("id", []))
+
+    def harvest(self, data: Any) -> None:
         """Recursively harvests IDs and tokens from JSON response structures."""
         if isinstance(data, dict):
             for k, v in data.items():
@@ -82,7 +130,15 @@ class StatePool:
                         self.auth_token = v_str
                     elif any(
                         id_keyword in k_lower
-                        for id_keyword in ("id", "account", "customer", "transaction", "batch", "run", "user")
+                        for id_keyword in (
+                            "id",
+                            "account",
+                            "customer",
+                            "transaction",
+                            "batch",
+                            "run",
+                            "user",
+                        )
                     ):
                         self.store_entity(k, v_str)
         elif isinstance(data, list):

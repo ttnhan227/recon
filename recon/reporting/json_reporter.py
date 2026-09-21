@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+
 from recon.common.models import RunSummary, TestResult
 
 
@@ -29,7 +30,9 @@ class JSONReporter:
         # Also write reports/latest.json for CLI convenience
         latest_file = self.output_dir / "latest.json"
         latest_file.write_text(
-            json.dumps({"summary": summary.model_dump(mode="json"), "results": results_data}, indent=2),
+            json.dumps(
+                {"summary": summary.model_dump(mode="json"), "results": results_data}, indent=2
+            ),
             encoding="utf-8",
         )
 

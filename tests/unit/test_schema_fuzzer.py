@@ -1,4 +1,3 @@
-import pytest
 from recon.planning.schema_fuzzer import SchemaFuzzer
 
 SCHEMA = {

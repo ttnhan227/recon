@@ -1,5 +1,6 @@
-import pytest
 import httpx
+import pytest
+
 from recon.common.models import (
     AssertionType,
     StepAssertion,
@@ -41,7 +42,9 @@ async def test_worker_pool_concurrency_execution():
                     TestStep(
                         name=f"Step {i}",
                         endpoint="http://test/api/health",
-                        assertions=[StepAssertion(assertion_type=AssertionType.STATUS_CODE, expected=200)],
+                        assertions=[
+                            StepAssertion(assertion_type=AssertionType.STATUS_CODE, expected=200)
+                        ],
                     )
                 ],
             )

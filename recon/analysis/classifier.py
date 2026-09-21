@@ -1,11 +1,9 @@
 from __future__ import annotations
 
 import re
-from typing import Any
 
 from recon.common.models import (
     FailureCategory,
-    FailureEvidence,
     TestResult,
     TestStatus,
 )

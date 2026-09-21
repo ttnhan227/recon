@@ -14,8 +14,12 @@ from recon.common.config import settings
 
 # Context variables for request tracing & correlation IDs
 current_run_id: contextvars.ContextVar[str | None] = contextvars.ContextVar("run_id", default=None)
-current_test_id: contextvars.ContextVar[str | None] = contextvars.ContextVar("test_id", default=None)
-current_worker_id: contextvars.ContextVar[str | None] = contextvars.ContextVar("worker_id", default=None)
+current_test_id: contextvars.ContextVar[str | None] = contextvars.ContextVar(
+    "test_id", default=None
+)
+current_worker_id: contextvars.ContextVar[str | None] = contextvars.ContextVar(
+    "worker_id", default=None
+)
 
 console = Console(stderr=True)
 
@@ -61,10 +65,10 @@ def setup_logger(name: str = "recon") -> logging.Logger:
 
     # Avoid duplicate handlers
     if not logger.handlers:
+        handler: logging.Handler
         if settings.json_logs:
             handler = logging.StreamHandler(sys.stdout)
             handler.setFormatter(JSONLogFormatter())
-            logger.addHandler(handler)
         else:
             handler = RichHandler(
                 console=console,
@@ -73,7 +77,7 @@ def setup_logger(name: str = "recon") -> logging.Logger:
                 show_path=False,
                 rich_tracebacks=True,
             )
-            logger.addHandler(handler)
+        logger.addHandler(handler)
 
     return logger
 

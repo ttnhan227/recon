@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import tempfile
 from pathlib import Path
+
 import pytest
 
 from recon.common.models import (
@@ -47,6 +48,7 @@ async def login(payload: dict):
         assert len(contexts) > 0
         ctx = contexts[0]
         assert ctx.file_path == auth_file
+        assert ctx.function_name is not None
         assert "login" in ctx.function_name
         assert ctx.line_number > 0
 
@@ -127,10 +129,14 @@ async def test_ai_patch_generator_with_mock():
 
 
 def test_extract_method_and_path():
-    mp = SelfHealingEngine.extract_method_and_path("[POST /api/v1/auth/login] Boundary - empty string for 'password'")
+    mp = SelfHealingEngine.extract_method_and_path(
+        "[POST /api/v1/auth/login] Boundary - empty string for 'password'"
+    )
     assert mp == ("POST", "/api/v1/auth/login")
 
-    mp2 = SelfHealingEngine.extract_method_and_path("[GET /api/v1/documents/{document_id}] Happy Path")
+    mp2 = SelfHealingEngine.extract_method_and_path(
+        "[GET /api/v1/documents/{document_id}] Happy Path"
+    )
     assert mp2 == ("GET", "/api/v1/documents/{document_id}")
 
     mp3 = SelfHealingEngine.extract_method_and_path("Invalid Test Format")

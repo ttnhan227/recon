@@ -4,6 +4,7 @@ import abc
 import asyncio
 import json
 import os
+import re
 from typing import Any
 
 from recon.common.config import settings
@@ -56,91 +57,142 @@ class MockProvider(LLMProvider):
         prompt_lower = prompt.lower()
 
         # Check if this is a test generation request
-        if "propose additional" in prompt_lower or "generate exploratory test cases" in prompt_lower:
-            return json.dumps({
-                "test_cases": [
-                    {
-                        "name": "AI Edge Case: Max Length & Unicode Input",
-                        "category": "BOUNDARY",
-                        "method": "POST",
-                        "target": "/api/users",
-                        "body": {
-                            "name": "Tëst Üsér " * 20,
-                            "email": "unicode.test+tag@sub.domain.co.uk",
-                            "password": "P@ssword1234567890!@#$%^&*()",
+        if (
+            "propose additional" in prompt_lower
+            or "generate exploratory test cases" in prompt_lower
+        ):
+            return json.dumps(
+                {
+                    "test_cases": [
+                        {
+                            "name": "AI Edge Case: Max Length & Unicode Input",
+                            "category": "BOUNDARY",
+                            "method": "POST",
+                            "target": "/api/users",
+                            "body": {
+                                "name": "Tëst Üsér " * 20,
+                                "email": "unicode.test+tag@sub.domain.co.uk",
+                                "password": "P@ssword1234567890!@#$%^&*()",
+                            },
+                            "expected_status": [200, 201, 400, 422],
                         },
-                        "expected_status": [200, 201, 400, 422],
-                    },
-                    {
-                        "name": "AI Edge Case: Unexpected Additional Fields",
-                        "category": "NEGATIVE",
-                        "method": "POST",
-                        "target": "/api/orders",
-                        "body": {
-                            "item_id": "ITEM-100",
-                            "quantity": 1,
-                            "currency": "USD",
-                            "__proto__": {"admin": True},
-                            "unexpected_injected_field": "test",
+                        {
+                            "name": "AI Edge Case: Unexpected Additional Fields",
+                            "category": "NEGATIVE",
+                            "method": "POST",
+                            "target": "/api/orders",
+                            "body": {
+                                "item_id": "ITEM-100",
+                                "quantity": 1,
+                                "currency": "USD",
+                                "__proto__": {"admin": True},
+                                "unexpected_injected_field": "test",
+                            },
+                            "expected_status": [200, 201, 400, 422],
                         },
-                        "expected_status": [200, 201, 400, 422],
-                    },
-                ]
-            })
+                    ]
+                }
+            )
+
+        # Code Patching request (Self-Healing / recon fix)
+        if (
+            "modified_full_content" in (system_prompt or "")
+            or "autonomous debugging agent" in (system_prompt or "").lower()
+        ):
+            match = re.search(r"```(?:\w+)?\n([\s\S]*?)\n```", prompt)
+            source_content = match.group(1) if match else ""
+            fixed_content = source_content
+            explanation = "Provide default fallback for optional order.currency to prevent unhandled 500 error."
+            if (
+                "if not order.currency:" in source_content
+                and "HTTP_500_INTERNAL_SERVER_ERROR" in source_content
+            ):
+                fixed_content = re.sub(
+                    r"if not order\.currency:\s+raise HTTPException\([\s\S]*?\n\s*\)",
+                    '# Fix: Gracefully fallback currency to USD if omitted\n    currency = order.currency or "USD"',
+                    source_content,
+                ).replace(
+                    '"currency": order.currency.upper()',
+                    '"currency": (order.currency or "USD").upper()',
+                )
+                explanation = (
+                    "Default omitted currency to USD instead of throwing 500 Internal Server Error."
+                )
+            elif "order.currency.upper()" in source_content:
+                fixed_content = source_content.replace(
+                    "currency_code = order.currency.upper()",
+                    'currency_code = (order.currency or "USD").upper()',
+                )
+            elif "def " in source_content:
+                fixed_content = f"# Autonomous bugfix applied\n{source_content}"
+                explanation = "Applied defensive edge case handling."
+
+            return json.dumps(
+                {
+                    "explanation": explanation,
+                    "modified_full_content": fixed_content,
+                }
+            )
 
         # Failure Analysis request
         if "currency" in prompt_lower:
-            return json.dumps({
-                "observed_facts": [
-                    "HTTP POST /api/orders returned status 500 Internal Server Error",
-                    "Server response contains NullReferenceException / NullPointerException",
-                    "The failure occurs specifically when the 'currency' property is omitted from payload",
-                ],
-                "hypotheses": [
-                    {
-                        "hypothesis": "The server's order processing service attempts to read payment.currency without checking for null.",
-                        "confidence": 0.92,
-                        "explanation": "Stack trace and omission of 'currency' field in request directly correlate with the NullPointerException.",
-                    }
-                ],
-                "suggested_fix": "Add mandatory input validation for 'currency' in the Order model before delegating to payment service.",
-                "confidence_score": 0.92,
-            })
+            return json.dumps(
+                {
+                    "observed_facts": [
+                        "HTTP POST /api/orders returned status 500 Internal Server Error",
+                        "Server response contains NullReferenceException / NullPointerException",
+                        "The failure occurs specifically when the 'currency' property is omitted from payload",
+                    ],
+                    "hypotheses": [
+                        {
+                            "hypothesis": "The server's order processing service attempts to read payment.currency without checking for null.",
+                            "confidence": 0.92,
+                            "explanation": "Stack trace and omission of 'currency' field in request directly correlate with the NullPointerException.",
+                        }
+                    ],
+                    "suggested_fix": "Add mandatory input validation for 'currency' in the Order model before delegating to payment service.",
+                    "confidence_score": 0.92,
+                }
+            )
 
         if "login" in prompt_lower or "typeerror" in prompt_lower:
-            return json.dumps({
+            return json.dumps(
+                {
+                    "observed_facts": [
+                        "Browser login button clicked",
+                        "Navigation to /dashboard did not occur",
+                        "Browser console recorded: Uncaught TypeError: Cannot read properties of undefined",
+                    ],
+                    "hypotheses": [
+                        {
+                            "hypothesis": "The click handler in app.js attempts to access user session properties before asynchronous authentication completes.",
+                            "confidence": 0.89,
+                            "explanation": "Console logs confirm an undefined variable access inside login submit handler.",
+                        }
+                    ],
+                    "suggested_fix": "Add null check or await the authentication promise before accessing user profile attributes.",
+                    "confidence_score": 0.89,
+                }
+            )
+
+        # Generic analysis response
+        return json.dumps(
+            {
                 "observed_facts": [
-                    "Browser login button clicked",
-                    "Navigation to /dashboard did not occur",
-                    "Browser console recorded: Uncaught TypeError: Cannot read properties of undefined",
+                    "Test execution detected a status or assertion mismatch",
+                    "Endpoint response did not conform to the expected specification",
                 ],
                 "hypotheses": [
                     {
-                        "hypothesis": "The click handler in app.js attempts to access user session properties before asynchronous authentication completes.",
-                        "confidence": 0.89,
-                        "explanation": "Console logs confirm an undefined variable access inside login submit handler.",
+                        "hypothesis": "Application returned an unhandled error or rejected input unexpectedly.",
+                        "confidence": 0.78,
+                        "explanation": "Observed output deviates from documented specification.",
                     }
                 ],
-                "suggested_fix": "Add null check or await the authentication promise before accessing user profile attributes.",
-                "confidence_score": 0.89,
-            })
-
-        # Generic analysis response
-        return json.dumps({
-            "observed_facts": [
-                "Test execution detected a status or assertion mismatch",
-                "Endpoint response did not conform to the expected specification",
-            ],
-            "hypotheses": [
-                {
-                    "hypothesis": "Application returned an unhandled error or rejected input unexpectedly.",
-                    "confidence": 0.78,
-                    "explanation": "Observed output deviates from documented specification.",
-                }
-            ],
-            "suggested_fix": "Inspect backend route logic and ensure schema constraints are properly handled.",
-            "confidence_score": 0.78,
-        })
+                "suggested_fix": "Inspect backend route logic and ensure schema constraints are properly handled.",
+                "confidence_score": 0.78,
+            }
+        )
 
 
 class GeminiProvider(LLMProvider):
@@ -156,7 +208,9 @@ class GeminiProvider(LLMProvider):
 
         import httpx
 
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/{self.model}:generateContent"
+        url = (
+            f"https://generativelanguage.googleapis.com/v1beta/models/{self.model}:generateContent"
+        )
         headers = {
             "Content-Type": "application/json",
             "x-goog-api-key": self.api_key,
@@ -203,6 +257,7 @@ class OpenAIProvider(LLMProvider):
             raise LLMProviderError("OPENAI_API_KEY is not set.")
 
         import httpx
+
         messages = []
         if system_prompt:
             messages.append({"role": "system", "content": system_prompt})
@@ -220,7 +275,12 @@ class OpenAIProvider(LLMProvider):
 
         async with httpx.AsyncClient(timeout=30.0) as client:
             try:
-                resp = await _post_with_retry(client, "https://api.openai.com/v1/chat/completions", headers=headers, json_data=payload)
+                resp = await _post_with_retry(
+                    client,
+                    "https://api.openai.com/v1/chat/completions",
+                    headers=headers,
+                    json_data=payload,
+                )
                 data = resp.json()
                 return data["choices"][0]["message"]["content"] or ""
             except Exception as e:
@@ -239,6 +299,7 @@ class MistralProvider(LLMProvider):
             raise LLMProviderError("MISTRAL_API_KEY is not set.")
 
         import httpx
+
         messages = []
         if system_prompt:
             messages.append({"role": "system", "content": system_prompt})
@@ -256,7 +317,12 @@ class MistralProvider(LLMProvider):
 
         async with httpx.AsyncClient(timeout=30.0) as client:
             try:
-                resp = await _post_with_retry(client, "https://api.mistral.ai/v1/chat/completions", headers=headers, json_data=payload)
+                resp = await _post_with_retry(
+                    client,
+                    "https://api.mistral.ai/v1/chat/completions",
+                    headers=headers,
+                    json_data=payload,
+                )
                 data = resp.json()
                 return data["choices"][0]["message"]["content"] or ""
             except Exception as e:
@@ -275,6 +341,7 @@ class AnthropicProvider(LLMProvider):
             raise LLMProviderError("ANTHROPIC_API_KEY is not set.")
 
         import httpx
+
         headers = {
             "x-api-key": self.api_key,
             "anthropic-version": "2023-06-01",
@@ -291,7 +358,12 @@ class AnthropicProvider(LLMProvider):
 
         async with httpx.AsyncClient(timeout=30.0) as client:
             try:
-                resp = await _post_with_retry(client, "https://api.anthropic.com/v1/messages", headers=headers, json_data=payload)
+                resp = await _post_with_retry(
+                    client,
+                    "https://api.anthropic.com/v1/messages",
+                    headers=headers,
+                    json_data=payload,
+                )
                 data = resp.json()
                 content = data.get("content", [])
                 return content[0].get("text", "") if content else ""
@@ -302,13 +374,20 @@ class AnthropicProvider(LLMProvider):
 class OpenAICompatibleProvider(LLMProvider):
     """Universal provider for any OpenAI-compatible API (Ollama, Groq, DeepSeek, OpenRouter, Together, vLLM)."""
 
-    def __init__(self, api_key: str | None = None, base_url: str | None = None, model: str | None = None):
-        self.api_key = api_key or settings.openai_api_key or os.getenv("RECON_LLM_API_KEY") or "none"
-        self.base_url = (base_url or settings.llm_base_url or "https://api.openai.com/v1").rstrip("/")
+    def __init__(
+        self, api_key: str | None = None, base_url: str | None = None, model: str | None = None
+    ):
+        self.api_key = (
+            api_key or settings.openai_api_key or os.getenv("RECON_LLM_API_KEY") or "none"
+        )
+        self.base_url = (base_url or settings.llm_base_url or "https://api.openai.com/v1").rstrip(
+            "/"
+        )
         self.model = model or settings.custom_model or settings.openai_model
 
     async def complete(self, prompt: str, system_prompt: str | None = None) -> str:
         import httpx
+
         messages = []
         if system_prompt:
             messages.append({"role": "system", "content": system_prompt})
@@ -331,7 +410,9 @@ class OpenAICompatibleProvider(LLMProvider):
                 data = resp.json()
                 return data["choices"][0]["message"]["content"] or ""
             except Exception as e:
-                raise LLMProviderError(f"Custom/Compatible LLM API request to {endpoint} failed: {e}") from e
+                raise LLMProviderError(
+                    f"Custom/Compatible LLM API request to {endpoint} failed: {e}"
+                ) from e
 
 
 def get_llm_provider(provider_name: str | None = None) -> LLMProvider:

@@ -1,6 +1,12 @@
 import pytest
+
 from recon.common.exceptions import SSRFSecurityError
-from recon.common.security import is_safe_target_url, redact_headers, redact_sensitive_data, validate_target_url
+from recon.common.security import (
+    is_safe_target_url,
+    redact_headers,
+    redact_sensitive_data,
+    validate_target_url,
+)
 
 
 def test_ssrf_blocking_cloud_metadata():

@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 from typing import Any
-from fastapi import BackgroundTasks, FastAPI, HTTPException
+
+from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
+from recon.common.config import settings
 from recon.common.models import RunSummary
 from recon.orchestration.orchestrator import TestOrchestrator
 from recon.persistence.database import DatabaseManager
@@ -11,7 +13,7 @@ from recon.persistence.database import DatabaseManager
 api_app = FastAPI(
     title="Recon QA Agent API",
     description="HTTP API for triggering remote test runs, webhooks, and retrieving test reports.",
-    version="0.1.0",
+    version=settings.version,
 )
 
 
@@ -53,7 +55,10 @@ async def trigger_test_run(req: TriggerRunRequest):
 async def get_run_details(run_id: str):
     """Retrieves RunSummary for a specific run_id."""
     db = DatabaseManager()
-    summary = await db.get_run_summary(run_id)
-    if not summary:
-        raise HTTPException(status_code=404, detail=f"Run {run_id} not found")
-    return summary
+    try:
+        summary = await db.get_run_summary(run_id)
+        if not summary:
+            raise HTTPException(status_code=404, detail=f"Run {run_id} not found")
+        return summary
+    finally:
+        await db.close()

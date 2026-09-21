@@ -1,15 +1,13 @@
-﻿import pytest
 import httpx
-from recon.llm.provider import (
-    GeminiProvider,
-    OpenAIProvider,
-    AnthropicProvider,
-    MistralProvider,
-    OpenAICompatibleProvider,
-    MockProvider,
-    get_llm_provider,
-)
+import pytest
+
 from recon.common.exceptions import LLMProviderError
+from recon.llm.provider import (
+    AnthropicProvider,
+    GeminiProvider,
+    MockProvider,
+    OpenAIProvider,
+)
 
 
 @pytest.mark.asyncio
@@ -25,19 +23,17 @@ async def test_gemini_provider_zero_sdk(monkeypatch):
         response = httpx.Response(
             status_code=200,
             json={
-                "candidates": [
-                    {
-                        "content": {
-                            "parts": [{"text": "Hello from zero-SDK Gemini!"}]
-                        }
-                    }
-                ]
+                "candidates": [{"content": {"parts": [{"text": "Hello from zero-SDK Gemini!"}]}}]
             },
             request=httpx.Request("POST", url),
         )
         return response
 
-    monkeypatch.setattr(httpx.AsyncClient, "post", lambda self, url, **kwargs: mock_post(url, kwargs.get("headers"), kwargs.get("json")))
+    monkeypatch.setattr(
+        httpx.AsyncClient,
+        "post",
+        lambda self, url, **kwargs: mock_post(url, kwargs.get("headers"), kwargs.get("json")),
+    )
 
     result = await provider.complete(prompt="Hello Gemini", system_prompt="Be concise")
     assert result == "Hello from zero-SDK Gemini!"
@@ -56,15 +52,15 @@ async def test_openai_provider_zero_sdk(monkeypatch):
 
         return httpx.Response(
             status_code=200,
-            json={
-                "choices": [
-                    {"message": {"content": "Hello from zero-SDK OpenAI!"}}
-                ]
-            },
+            json={"choices": [{"message": {"content": "Hello from zero-SDK OpenAI!"}}]},
             request=httpx.Request("POST", url),
         )
 
-    monkeypatch.setattr(httpx.AsyncClient, "post", lambda self, url, **kwargs: mock_post(url, kwargs.get("headers"), kwargs.get("json")))
+    monkeypatch.setattr(
+        httpx.AsyncClient,
+        "post",
+        lambda self, url, **kwargs: mock_post(url, kwargs.get("headers"), kwargs.get("json")),
+    )
 
     result = await provider.complete(prompt="Hello OpenAI", system_prompt="System instructions")
     assert result == "Hello from zero-SDK OpenAI!"
@@ -85,7 +81,11 @@ async def test_anthropic_provider_zero_sdk(monkeypatch):
             request=httpx.Request("POST", url),
         )
 
-    monkeypatch.setattr(httpx.AsyncClient, "post", lambda self, url, **kwargs: mock_post(url, kwargs.get("headers"), kwargs.get("json")))
+    monkeypatch.setattr(
+        httpx.AsyncClient,
+        "post",
+        lambda self, url, **kwargs: mock_post(url, kwargs.get("headers"), kwargs.get("json")),
+    )
 
     result = await provider.complete(prompt="Hi Claude", system_prompt="System text")
     assert result == "Hello from Anthropic!"

@@ -5,16 +5,15 @@ import time
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Callable, Coroutine, Any
+from typing import Any, Callable, Coroutine
 from urllib.parse import urljoin
+
 import httpx
 
 from recon.analysis.classifier import DeterministicFailureClassifier
 from recon.analysis.rca_engine import RootCauseAnalyzer
-from recon.common.config import settings
 from recon.common.logging import current_run_id, logger
 from recon.common.models import (
-    FailureCategory,
     RunSummary,
     TestCase,
     TestCategory,
@@ -36,6 +35,7 @@ from recon.reporting.json_reporter import JSONReporter
 
 class TestOrchestrator:
     """End-to-end Test Orchestration Coordinator with DAG dependency chaining and dynamic auth."""
+
     __test__ = False
 
     def __init__(
@@ -60,8 +60,19 @@ class TestOrchestrator:
         """Recursively inspects response data to locate JWT/Bearer tokens."""
         if isinstance(data, dict):
             # Direct matches
-            for token_key in ("accessToken", "access_token", "token", "jwt", "id_token", "bearerToken"):
-                if token_key in data and isinstance(data[token_key], str) and len(data[token_key]) > 20:
+            for token_key in (
+                "accessToken",
+                "access_token",
+                "token",
+                "jwt",
+                "id_token",
+                "bearerToken",
+            ):
+                if (
+                    token_key in data
+                    and isinstance(data[token_key], str)
+                    and len(data[token_key]) > 20
+                ):
                     return data[token_key]
 
             # Nested traversal
@@ -76,18 +87,30 @@ class TestOrchestrator:
                     return res
         return None
 
-    async def _auto_authenticate(self, target_url: str, app: DiscoveredApplication) -> dict[str, str]:
+    async def _auto_authenticate(
+        self, target_url: str, app: DiscoveredApplication
+    ) -> dict[str, str]:
         """Attempts intelligent pre-flight schema-driven registration and login to capture dynamic JWT tokens."""
         auth_headers: dict[str, str] = {}
         base_url = target_url.rstrip("/")
 
         # Find candidate endpoints
         register_ep = next(
-            (ep for ep in app.endpoints if any(k in ep.path.lower() for k in ("/register", "/signup")) and ep.method == "POST"),
+            (
+                ep
+                for ep in app.endpoints
+                if any(k in ep.path.lower() for k in ("/register", "/signup"))
+                and ep.method == "POST"
+            ),
             None,
         )
         login_ep = next(
-            (ep for ep in app.endpoints if any(k in ep.path.lower() for k in ("/login", "/token", "/auth/access")) and ep.method == "POST"),
+            (
+                ep
+                for ep in app.endpoints
+                if any(k in ep.path.lower() for k in ("/login", "/token", "/auth/access"))
+                and ep.method == "POST"
+            ),
             None,
         )
 
@@ -119,7 +142,9 @@ class TestOrchestrator:
                         reg_data = reg_resp.json()
                         token = self._extract_token_recursive(reg_data)
                         if token:
-                            logger.info("Autonomous Auth: Captured JWT token directly from registration.")
+                            logger.info(
+                                "Autonomous Auth: Captured JWT token directly from registration."
+                            )
                             auth_headers["Authorization"] = f"Bearer {token}"
                             StatePool.get_instance().auth_token = token
                             return auth_headers
@@ -154,7 +179,9 @@ class TestOrchestrator:
 
                 # Try OAuth2 form urlencoded password flow
                 try:
-                    resp = await client.post(login_url, data={"username": test_email, "password": test_password})
+                    resp = await client.post(
+                        login_url, data={"username": test_email, "password": test_password}
+                    )
                     if resp.status_code in (200, 201):
                         data = resp.json()
                         token = self._extract_token_recursive(data)
@@ -179,6 +206,7 @@ class TestOrchestrator:
         6. Explicit 404 tests
         7. Destructive DELETE tests
         """
+
         def _dag_weight(t: TestCase) -> int:
             cat = t.category
             method = t.method or "GET"
@@ -216,6 +244,7 @@ class TestOrchestrator:
         include_paths: list[str] | None = None,
         exclude_paths: list[str] | None = None,
         tags: list[str] | None = None,
+        filter_test_ids: set[str] | list[str] | None = None,
         custom_tests: list[TestCase] | None = None,
         on_progress: Callable[[TestCase, TestResult], Coroutine[Any, Any, None]] | None = None,
     ) -> tuple[RunSummary, list[TestResult]]:
@@ -275,6 +304,7 @@ class TestOrchestrator:
         # Filter by include_paths
         if include_paths:
             import fnmatch
+
             filtered = []
             for t in tests_to_run:
                 for pattern in include_paths:
@@ -289,6 +319,7 @@ class TestOrchestrator:
         # Filter by exclude_paths
         if exclude_paths:
             import fnmatch
+
             tests_to_run = [
                 t
                 for t in tests_to_run
@@ -298,6 +329,12 @@ class TestOrchestrator:
                     for p in exclude_paths
                 )
             ]
+
+        # Filter by specific test IDs (e.g. for incremental --failed-only re-testing)
+        if filter_test_ids:
+            filter_id_set = set(filter_test_ids)
+            tests_to_run = [t for t in tests_to_run if t.id in filter_id_set]
+            logger.info(f"Filtered test suite to {len(tests_to_run)} failed test(s)")
 
         # Apply DAG Topological Ordering
         tests_to_run = self._sort_tests_dag(tests_to_run)
@@ -348,7 +385,11 @@ class TestOrchestrator:
             sampled: list[tuple[TestResult, TestCase | None]] = []
 
             for res, orig_test in failed_items:
-                cat_val = res.failure_evidence.failure_category.value if res.failure_evidence else "UNKNOWN"
+                cat_val = (
+                    res.failure_evidence.failure_category.value
+                    if res.failure_evidence
+                    else "UNKNOWN"
+                )
                 target_str = orig_test.target if orig_test else res.test_name
                 sig = f"{cat_val}:{target_str}"
                 if sig not in seen_signatures or len(sampled) < 3:

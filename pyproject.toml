@@ -39,6 +39,8 @@ dev = [
     "pytest-cov>=5.0.0",
     "build>=1.2.0",
     "twine>=5.0.0",
+    "types-PyYAML>=6.0.12.20240314",
+    "types-jsonschema>=4.22.0.20240428",
 ]
 
 [project.scripts]
@@ -49,6 +51,9 @@ qa-agent = "recon.apps.cli.main:app"
 where = ["."]
 include = ["recon*"]
 
+[tool.setuptools.package-data]
+"recon.demo_app" = ["static/*"]
+
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
@@ -57,3 +62,14 @@ pythonpath = ["."]
 [tool.ruff]
 line-length = 100
 target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W"]
+ignore = ["E501"]
+
+[tool.mypy]
+python_version = "3.12"
+ignore_missing_imports = true
+warn_unused_configs = true
+check_untyped_defs = true
+disallow_untyped_defs = false

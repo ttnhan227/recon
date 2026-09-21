@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+
 from recon.common.config import get_project_slug, get_recon_home, settings
 
 

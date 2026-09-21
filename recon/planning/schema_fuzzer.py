@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from typing import Any
 import uuid
+from typing import Any
 
 
 class SchemaFuzzer:
@@ -76,12 +76,12 @@ class SchemaFuzzer:
             minimum = prop_schema.get("minimum")
             maximum = prop_schema.get("maximum")
             if minimum is not None:
-                val = minimum
+                num_val = minimum
             elif maximum is not None:
-                val = maximum
+                num_val = maximum
             else:
-                val = 100
-            return int(val) if p_type == "integer" else float(val)
+                num_val = 100
+            return int(num_val) if p_type == "integer" else float(num_val)
 
         # 4. Boolean
         elif p_type == "boolean":

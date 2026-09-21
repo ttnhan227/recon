@@ -1,14 +1,12 @@
 from __future__ import annotations
 
 import asyncio
-import os
 import re
 from pathlib import Path
-from typing import Any
-from fastapi import FastAPI, HTTPException, Request, Response, status
-from fastapi.responses import HTMLResponse, JSONResponse
-from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, EmailStr, Field
+
+from fastapi import FastAPI, HTTPException, status
+from fastapi.responses import HTMLResponse
+from pydantic import BaseModel, Field
 
 app = FastAPI(
     title="Recon Demo Target Application",
@@ -34,7 +32,9 @@ class OrderItem(BaseModel):
 class OrderCreateRequest(BaseModel):
     item_id: str = Field(default="ITEM-100")
     quantity: int = Field(default=1)
-    currency: str | None = Field(default=None, description="Optional currency in schema, but causes 500 when omitted")
+    currency: str | None = Field(
+        default=None, description="Optional currency in schema, but causes 500 when omitted"
+    )
 
 
 # 1. Health check

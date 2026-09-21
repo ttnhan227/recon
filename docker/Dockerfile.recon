@@ -1,8 +1,11 @@
-FROM python:3.12-slim
+FROM python:3.12-slim AS base
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
-    PIP_NO_CACHE_DIR=1
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PLAYWRIGHT_BROWSERS_PATH=/ms-playwright \
+    RECON_REPORTS_DIR=/app/reports
 
 WORKDIR /app
 
@@ -27,12 +30,28 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libasound2t64 \
     && rm -rf /var/lib/apt/lists/*
 
-COPY pyproject.toml README.md ./
-COPY recon/ ./recon/
-COPY apps/ ./apps/
+# Create non-root user and directories
+RUN groupadd -r recon && useradd -r -g recon -u 1000 -d /app -s /bin/bash reconuser \
+    && mkdir -p /app/reports /ms-playwright \
+    && chown -R reconuser:recon /app /ms-playwright
 
-RUN pip install --no-cache-dir .[browser,ai]
-RUN python -m playwright install --with-deps chromium
+# Pre-install Playwright and browser binaries for fast layer caching
+RUN pip install --no-cache-dir "playwright>=1.44.0" \
+    && python -m playwright install --with-deps chromium
+
+# Copy dependency specifications first to leverage caching
+COPY pyproject.toml README.md ./
+
+# Install project dependencies
+RUN pip install --no-cache-dir .[browser]
+
+# Copy application source code
+COPY recon/ ./recon/
+
+# Finalize ownership for non-root user
+RUN chown -R reconuser:recon /app
+
+USER reconuser
 
 ENTRYPOINT ["recon"]
 CMD ["--help"]

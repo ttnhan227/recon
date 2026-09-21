@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 import re
-from typing import Any
 from urllib.parse import urljoin
 
 from recon.common.logging import logger
@@ -58,13 +57,15 @@ class AITestGenerator:
         # Build application overview for LLM
         summary_endpoints = []
         for ep in app.endpoints[:10]:
-            summary_endpoints.append({
-                "path": ep.path,
-                "method": ep.method,
-                "summary": ep.summary,
-                "params": [p.name for p in ep.parameters],
-                "has_body": ep.request_body_schema is not None,
-            })
+            summary_endpoints.append(
+                {
+                    "path": ep.path,
+                    "method": ep.method,
+                    "summary": ep.summary,
+                    "params": [p.name for p in ep.parameters],
+                    "has_body": ep.request_body_schema is not None,
+                }
+            )
 
         prompt = f"Target Application Base URL: {app.target_url}\nEndpoints:\n{json.dumps(summary_endpoints, indent=2)}"
 

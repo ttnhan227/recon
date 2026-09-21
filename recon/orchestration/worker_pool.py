@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 import asyncio
-from typing import Callable, Coroutine, Any
 from pathlib import Path
+from typing import Any, Callable, Coroutine
 
 from recon.common.logging import current_worker_id, logger
 from recon.common.models import TestCase, TestResult, TestType

@@ -1,4 +1,4 @@
-name: Recon CI/CD Pipeline
+name: Recon CI Pipeline
 
 on:
   push:
@@ -6,11 +6,14 @@ on:
   pull_request:
     branches: [ main, master ]
 
-jobs:
-  test:
-    name: Test Suite & Autonomous Verification
-    runs-on: ubuntu-latest
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
+jobs:
+  lint:
+    name: Code Quality & Static Analysis
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -21,29 +24,89 @@ jobs:
           python-version: "3.12"
           cache: "pip"
 
-      - name: Install dependencies
+      - name: Install Lint & Type Checkers
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: Run Ruff Linter
+        run: ruff check .
+
+      - name: Run Ruff Format Check
+        run: ruff format --check .
+
+      - name: Run Mypy Static Type Checking
+        run: mypy recon tests
+
+  test:
+    name: Test Suite (Python ${{ matrix.python-version }})
+    needs: lint
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12", "3.13"]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: "pip"
+
+      - name: Install dependencies & Playwright
         run: |
           python -m pip install --upgrade pip
           pip install -e ".[browser,dev]"
           python -m playwright install --with-deps chromium
 
-      - name: Run Unit & Integration Tests
+      - name: Run Pytest Suite with Coverage
         run: |
-          pytest -v tests/unit tests/integration
+          pytest -v --cov=recon --cov-report=xml --cov-report=term tests/
 
       - name: Run System Diagnostics (Doctor)
         run: |
           recon doctor
 
-      - name: Launch Demo Application in Background
+      - name: Upload Coverage to Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-py${{ matrix.python-version }}
+          path: coverage.xml
+          retention-days: 7
+
+  e2e-demo:
+    name: Autonomous E2E Verification
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install dependencies & Playwright
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[browser,dev]"
+          python -m playwright install --with-deps chromium
+
+      - name: Launch Demo Application
         run: |
           python -m uvicorn recon.demo_app.main:app --host 127.0.0.1 --port 8000 &
-          sleep 3
+          sleep 4
 
       - name: Run Autonomous QA Agent against Demo App
         id: qa_run
         run: |
-          recon test http://127.0.0.1:8000 --browser --concurrency 4 || echo "QA run completed with intentional defects found (exit code 1)."
+          recon test http://127.0.0.1:8000 --browser --concurrency 4 || echo "QA run detected expected application defects."
 
       - name: Upload Test Report Artifacts
         if: always()
@@ -52,3 +115,25 @@ jobs:
           name: recon-qa-reports
           path: ~/.recon/reports/
           retention-days: 14
+
+  docker:
+    name: Docker Build & Config Validation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Validate Docker Compose Configuration
+        run: |
+          docker compose config
+
+      - name: Build Demo App Image
+        run: |
+          docker build -t recon-demo:test -f docker/Dockerfile.demo .
+
+      - name: Build Recon Agent Image
+        run: |
+          docker build -t recon-agent:test -f docker/Dockerfile.recon .

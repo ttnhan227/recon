@@ -11,6 +11,9 @@ services:
       interval: 5s
       timeout: 3s
       retries: 5
+    networks:
+      - recon-network
+    restart: unless-stopped
 
   recon-agent:
     build:
@@ -24,4 +27,31 @@ services:
       - ./reports:/app/reports
     environment:
       - RECON_LLM_PROVIDER=mock
+      - RECON_REPORTS_DIR=/app/reports
     command: ["test", "http://demo-app:8000", "--browser", "--concurrency", "4"]
+    networks:
+      - recon-network
+
+  recon-api:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.recon
+    container_name: recon-api
+    ports:
+      - "8501:8501"
+    environment:
+      - RECON_LLM_PROVIDER=mock
+      - RECON_REPORTS_DIR=/app/reports
+    volumes:
+      - ./reports:/app/reports
+    command: ["api", "--host", "0.0.0.0", "--port", "8501"]
+    profiles:
+      - api
+      - full
+    networks:
+      - recon-network
+    restart: unless-stopped
+
+networks:
+  recon-network:
+    driver: bridge

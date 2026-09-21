@@ -4,9 +4,8 @@ import base64
 import html
 import json
 from pathlib import Path
-from typing import Any
 
-from recon.common.models import RunSummary, TestResult, TestStatus
+from recon.common.models import RunSummary, TestResult
 
 
 class HTMLReporter:
@@ -43,7 +42,9 @@ class HTMLReporter:
                     if p.exists():
                         try:
                             data_b64 = base64.b64encode(p.read_bytes()).decode()
-                            item["failure_evidence"]["screenshots"][s_idx]["base64"] = f"data:image/png;base64,{data_b64}"
+                            item["failure_evidence"]["screenshots"][s_idx]["base64"] = (
+                                f"data:image/png;base64,{data_b64}"
+                            )
                         except Exception:
                             pass
             tests_json.append(item)
@@ -74,14 +75,14 @@ class HTMLReporter:
         * {{ box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }}
         body {{ background-color: var(--bg); color: var(--text); padding: 2rem; line-height: 1.5; }}
         .container {{ max-width: 1300px; margin: 0 auto; }}
-        
+
         /* Header */
         header {{ display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; padding-bottom: 1.5rem; border-bottom: 1px solid var(--border); }}
         .brand {{ display: flex; align-items: center; gap: 0.75rem; }}
         .badge-logo {{ background: linear-gradient(135deg, #6366f1, #a855f7); color: white; font-weight: 800; font-size: 1.1rem; padding: 0.35rem 0.75rem; border-radius: 0.5rem; letter-spacing: 0.05em; }}
         .title h1 {{ font-size: 1.6rem; font-weight: 700; }}
         .title p {{ font-size: 0.9rem; color: var(--text-muted); }}
-        
+
         /* Metric Grid */
         .stats-grid {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 1rem; margin-bottom: 2rem; }}
         .card {{ background: var(--surface); border: 1px solid var(--border); border-radius: 0.75rem; padding: 1.25rem; }}
@@ -90,7 +91,7 @@ class HTMLReporter:
         .card-value.pass {{ color: var(--pass); }}
         .card-value.fail {{ color: var(--fail); }}
         .card-value.info {{ color: var(--info); }}
-        
+
         /* Breakdown Section */
         .breakdown-section {{ display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-bottom: 2rem; }}
         .breakdown-card {{ background: var(--surface); border: 1px solid var(--border); border-radius: 0.75rem; padding: 1.25rem; }}
@@ -102,14 +103,14 @@ class HTMLReporter:
         .tax-badge.assert-err {{ background: #831843; color: #fbcfe8; }}
         .tax-badge.val-err {{ background: #78350f; color: #fde68a; }}
         .tax-badge.auth-err {{ background: #581c87; color: #e9d5ff; }}
-        
+
         /* Filters & Table */
         .controls {{ display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }}
         .filter-group {{ display: flex; gap: 0.5rem; }}
         .btn-filter {{ background: var(--surface); border: 1px solid var(--border); color: var(--text-muted); padding: 0.4rem 0.85rem; border-radius: 0.375rem; cursor: pointer; font-size: 0.875rem; font-weight: 500; }}
         .btn-filter.active {{ background: var(--accent); color: white; border-color: var(--accent); }}
         .search-box {{ background: var(--surface); border: 1px solid var(--border); color: var(--text); padding: 0.4rem 0.85rem; border-radius: 0.375rem; font-size: 0.875rem; width: 260px; }}
-        
+
         .test-list {{ display: flex; flex-direction: column; gap: 0.75rem; }}
         .test-row {{ background: var(--surface); border: 1px solid var(--border); border-radius: 0.5rem; overflow: hidden; transition: all 0.2s; }}
         .test-row.failed {{ border-left: 4px solid var(--fail); }}
@@ -123,22 +124,22 @@ class HTMLReporter:
         .status-pill.passed {{ background: rgba(16, 185, 129, 0.2); color: #34d399; }}
         .status-pill.failed {{ background: rgba(239, 68, 68, 0.2); color: #f87171; }}
         .status-pill.error {{ background: rgba(239, 68, 68, 0.3); color: #fca5a5; }}
-        
+
         .test-body {{ display: none; padding: 1.25rem; border-top: 1px solid var(--border); background: #0c111d; }}
         .test-body.open {{ display: block; }}
-        
+
         /* RCA Box */
         .rca-box {{ background: rgba(99, 102, 241, 0.1); border: 1px solid rgba(99, 102, 241, 0.3); border-radius: 0.5rem; padding: 1rem; margin-bottom: 1.25rem; }}
         .rca-title {{ font-weight: 700; font-size: 0.9rem; color: #a5b4fc; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem; }}
         .rca-section {{ margin-top: 0.5rem; font-size: 0.875rem; }}
         .rca-section-title {{ font-weight: 600; color: #e0e7ff; margin-bottom: 0.25rem; }}
         .rca-fix {{ background: rgba(16, 185, 129, 0.1); border-left: 3px solid var(--pass); padding: 0.5rem 0.75rem; border-radius: 0.25rem; margin-top: 0.5rem; font-size: 0.875rem; color: #a7f3d0; }}
-        
+
         /* Traces & Code */
         pre {{ background: #111827; border: 1px solid var(--border); border-radius: 0.375rem; padding: 0.75rem; overflow-x: auto; font-family: monospace; font-size: 0.82rem; color: #e5e7eb; }}
         .step-item {{ background: #111827; border: 1px solid var(--border); border-radius: 0.375rem; padding: 0.75rem; margin-bottom: 0.75rem; }}
         .step-header {{ display: flex; justify-content: space-between; font-weight: 600; font-size: 0.875rem; margin-bottom: 0.5rem; }}
-        
+
         /* Screenshot Thumbnail */
         .screenshot-thumb {{ margin-top: 1rem; }}
         .screenshot-thumb img {{ max-width: 100%; max-height: 400px; border-radius: 0.375rem; border: 1px solid var(--border); box-shadow: 0 4px 6px -1px rgba(0,0,0,0.5); cursor: pointer; }}
@@ -219,7 +220,7 @@ class HTMLReporter:
             listEl.innerHTML = '';
 
             const filtered = tests.filter(t => {{
-                const statusMatch = currentFilter === 'ALL' || 
+                const statusMatch = currentFilter === 'ALL' ||
                     (currentFilter === 'PASSED' && t.status === 'PASSED') ||
                     (currentFilter === 'FAILED' && (t.status === 'FAILED' || t.status === 'ERROR'));
                 const searchMatch = t.test_name.toLowerCase().includes(search) || t.test_id.toLowerCase().includes(search);
