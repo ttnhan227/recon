@@ -50,7 +50,7 @@ class SchemaFuzzer:
             if "currency" in prop_lower:
                 return "USD"
             if "company" in prop_lower or "tenant" in prop_lower:
-                return f"Recon Enterprise {uuid.uuid4().hex[:4]}"
+                return f"Recon Test Company {uuid.uuid4().hex[:4]}"
             if "name" in prop_lower or "fullname" in prop_lower or "display_name" in prop_lower:
                 return "Recon QA Tester"
             if "sku" in prop_lower:
@@ -62,7 +62,7 @@ class SchemaFuzzer:
             if "reason" in prop_lower:
                 return "Commercial reconciliation adjustment"
             if "notes" in prop_lower or "description" in prop_lower:
-                return "Automated enterprise audit verification"
+                return "Automated QA test record"
 
             # Check minLength
             min_len = prop_schema.get("minLength", 1)

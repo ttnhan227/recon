@@ -21,7 +21,7 @@ from recon.planning.generator import TestSuiteGenerator
 
 app = typer.Typer(
     name="recon",
-    help="Recon: AI QA Agent — Autonomous Testing & Failure Analysis Platform",
+    help="Recon QA: API and browser test generation with failure analysis",
     no_args_is_help=True,
 )
 
@@ -198,7 +198,7 @@ def test_command(
         Optional[list[str]], typer.Option("--tag", "-t", help="Filter tests by tag")
     ] = None,
 ):
-    """Autonomous Test Execution: Discovers, plans, executes concurrently, classifies failures, and generates reports."""
+    """Discover a target, generate tests, execute them, classify failures, and write reports."""
     project_slug = get_project_slug(target)
     actual_report_dir = (report_dir or (settings.reports_dir / project_slug)).resolve()
     parsed_hdrs = parse_headers(header)
@@ -210,7 +210,7 @@ def test_command(
 
     console.print(
         Panel(
-            f"[bold white]Recon AI QA Agent[/bold white] (Project: [cyan]{project_slug}[/cyan])\n"
+            f"[bold white]Recon QA[/bold white] (Project: [cyan]{project_slug}[/cyan])\n"
             f"[dim]Target:[/dim] [cyan]{target}[/cyan] | [dim]Concurrency:[/dim] [yellow]{concurrency}[/yellow] | [dim]Browser:[/dim] [magenta]{browser}[/magenta] | [dim]AI:[/dim] [green]{ai}[/green]{hdr_info}{include_info}{failed_info}",
             border_style="cyan",
         )
@@ -418,7 +418,7 @@ def fix_command(
         ),
     ] = True,
 ):
-    """Autonomous Self-Healing: Locates source code for test failures, generates Unified Diff patches, and repairs code."""
+    """Generate and optionally apply reviewable patches for selected test failures."""
     from recon.healing.engine import SelfHealingEngine
 
     async def _run():

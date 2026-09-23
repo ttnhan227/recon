@@ -117,7 +117,7 @@ class TestOrchestrator:
         if not login_ep and not register_ep:
             return auth_headers
 
-        test_email = f"recon.qa.{uuid.uuid4().hex[:6]}@enterprise.io"
+        test_email = f"recon.qa.{uuid.uuid4().hex[:6]}@example.com"
         test_password = "Password123!"
 
         async with httpx.AsyncClient(timeout=10.0, verify=False) as client:
@@ -143,7 +143,7 @@ class TestOrchestrator:
                         token = self._extract_token_recursive(reg_data)
                         if token:
                             logger.info(
-                                "Autonomous Auth: Captured JWT token directly from registration."
+                                "Authentication setup: captured JWT token from registration."
                             )
                             auth_headers["Authorization"] = f"Bearer {token}"
                             StatePool.get_instance().auth_token = token
@@ -170,7 +170,7 @@ class TestOrchestrator:
                         data = resp.json()
                         token = self._extract_token_recursive(data)
                         if token:
-                            logger.info("Autonomous Auth: Captured JWT token from JSON login.")
+                            logger.info("Authentication setup: captured JWT token from JSON login.")
                             auth_headers["Authorization"] = f"Bearer {token}"
                             StatePool.get_instance().auth_token = token
                             return auth_headers
@@ -186,7 +186,7 @@ class TestOrchestrator:
                         data = resp.json()
                         token = self._extract_token_recursive(data)
                         if token:
-                            logger.info("Autonomous Auth: Captured OAuth2 token from form login.")
+                            logger.info("Authentication setup: captured OAuth2 token from form login.")
                             auth_headers["Authorization"] = f"Bearer {token}"
                             StatePool.get_instance().auth_token = token
                             return auth_headers
@@ -279,7 +279,7 @@ class TestOrchestrator:
                 spec_path_or_url=spec_path_or_url,
                 enable_browser=enable_browser,
             )
-            # Autonomous Auth Chaining: Auto-login/register if no auth headers provided
+            # Attempt registration/login setup when no authorization header is provided.
             effective_headers = dict(headers or {})
             if not any(k.lower() == "authorization" for k in effective_headers):
                 auto_headers = await self._auto_authenticate(target_url, app)

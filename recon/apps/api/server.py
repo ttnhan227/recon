@@ -11,7 +11,7 @@ from recon.orchestration.orchestrator import TestOrchestrator
 from recon.persistence.database import DatabaseManager
 
 api_app = FastAPI(
-    title="Recon QA Agent API",
+    title="Recon QA API",
     description="HTTP API for triggering remote test runs, webhooks, and retrieving test reports.",
     version=settings.version,
 )

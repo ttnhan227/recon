@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  <strong>An automated API testing and root-cause analysis platform that discovers OpenAPI endpoints, plans multi-category test suites, executes with bounded concurrency, and diagnoses failures with AI.</strong>
+  <strong>A Python QA tool that discovers OpenAPI endpoints and web pages, generates API and browser tests, runs them with bounded concurrency, and provides deterministic or optional LLM-assisted failure analysis.</strong>
 </p>
 
 <p align="center">
@@ -18,13 +18,13 @@
 
 ## Platform Visual Preview
 
-| Autonomous CLI Test Runner | Interactive HTML Report & RCA |
+| CLI Test Runner | HTML Report & Failure Analysis |
 |:---:|:---:|
 | ![Recon Terminal Execution](docs/screenshots/recon-terminal.png) | ![Interactive HTML Report](docs/screenshots/recon-report.png) |
 
 ---
 
-## ⚡ Quick Demo (Proof in Action)
+## Quick Demo
 
 ```bash
 # 1. Install directly from PyPI
@@ -36,7 +36,7 @@ recon test https://petstore.swagger.io/v2/swagger.json --concurrency 4
 
 ```text
 +-----------------------------------------------------------------------------+
-| Recon AI QA Agent                                                           |
+| Recon QA                                                                    |
 | Target: https://petstore.swagger.io/v2/swagger.json | Concurrency: 4        |
 +-----------------------------------------------------------------------------+
 [INFO] Auto-detected OpenAPI specification at swagger.json
@@ -47,7 +47,7 @@ recon test https://petstore.swagger.io/v2/swagger.json --concurrency 4
  FAILED API-003 [POST /v2/pet] Boundary - Empty Body (55ms) - HTTP 400
  PASSED API-004 [GET /v2/user/login] Auth - Valid Credentials (21ms)
  ...
-[INFO] Root Cause Analysis Engine:
+[INFO] Failure analysis:
  ↳ Identified missing required property in payload for /v2/pet (Confidence: 92%)
  ↳ Suggested Fix: Ensure required 'name' and 'photoUrls' fields are provided in request body
 
@@ -74,7 +74,7 @@ Target Application URL / OpenAPI Spec
   Discovery Engine ──► OpenAPI 3.x / Swagger Parser & Playwright Crawler
         │
         ▼
-  Autonomous Dynamic Auth ──► Schema-driven Auto-Registration & Bearer Token Injection
+  Automatic Auth Setup ──► Schema-driven Registration & Bearer Token Injection
         │
         ▼
   DAG Test Planner & Ordering
@@ -108,21 +108,21 @@ Target Application URL / OpenAPI Spec
 | Discovery Engine | Pydantic v2 + httpx | Auto-detects OpenAPI 3.0, 3.1 & Swagger 2.0 specs |
 | Test Planner & DAG | Python 3.12 AST | Generates categorized test matrices with topological dependency ordering |
 | State Pool Engine | Thread-Safe StateStore | Harvests created entity IDs and injects them into downstream test routes |
-| Autonomous Auth | Schema-Fuzzed Auth | Pre-flight registration & login flow with recursive JWT token extraction |
+| Authentication Setup | Schema-derived requests | Optional registration/login flow with JWT token extraction |
 | Concurrency Pool | `asyncio` + WorkerPool | Bounded parallel test execution (4–16 workers) |
 | RCA Engine | Deterministic + LLM | Rule-based failure classification & AI remediation recommendations |
 | Reporting | Jinja2 + Tailwind CSS | Standalone interactive HTML reports with assertion step diffs |
 | CLI Interface | Typer + Rich | Colorized terminal telemetry and interactive progress meters |
 
-### Key Infrastructure Decisions
+### Implementation Notes
 
-- **Deterministic Testing First** — AI operates as an analytical reasoning layer, not an unpredictable execution engine. Tests pass/fail on concrete assertions.
-- **Stateful DAG Dependency Chaining** — Solves synthetic 404s by executing entity creation endpoints first, storing generated IDs in a runtime `StatePool`, and substituting real IDs into dependent `GET`/`PUT` routes.
-- **Autonomous Authentication Lifecycle** — Automatically discovers registration/login schemas, registers a test entity, and propagates `Authorization: Bearer <token>` across all protected endpoints.
-- **Strict OpenAPI 3.0/3.1 Constraint Fuzzing** — Adheres strictly to `enum`, `minimum`, `maximum`, `minLength`, `format` (`uuid`, `email`, `currency`, `date-time`) specifications for robust validation and negative test matrices.
-- **Bounded Worker Pool** — Prevents server overload by capping concurrent asynchronous HTTP connections via asyncio queues.
-- **Provider-Agnostic LLM Engine** — Seamless support for Google Gemini, OpenAI, Anthropic Claude, Mistral AI, Ollama, DeepSeek, and custom endpoints.
-- **Self-Contained HTML Reports** — Zero external CSS/JS CDN dependencies; all styles, charts, and diffs are inline for offline auditing.
+- **Deterministic Results** — Test outcomes come from concrete assertions; optional LLM calls are used only for exploratory cases and failure suggestions.
+- **Dependency Ordering** — Creation requests can run before dependent routes, with generated IDs stored in a runtime `StatePool`.
+- **Authentication Setup** — Recon can build registration/login requests from discovered schemas and reuse extracted bearer tokens.
+- **OpenAPI Constraint Handling** — Generated payloads use schema fields such as `enum`, `minimum`, `maximum`, `minLength`, and common formats.
+- **Bounded Worker Pool** — An asyncio queue limits concurrent test execution.
+- **Optional LLM Providers** — Gemini, OpenAI, Claude, Mistral, Ollama, DeepSeek, and compatible custom endpoints are supported when configured.
+- **Standalone HTML Reports** — Styles, report data, and available screenshots are embedded for offline review.
 
 ---
 
@@ -130,13 +130,13 @@ Target Application URL / OpenAPI Spec
 
 - **Automated OpenAPI Discovery**: Parses OpenAPI 3.0, 3.1, and Swagger 2.0 schemas into strongly-typed parameter trees.
 - **Stateful Chaining (DAG)**: Automatically feeds created entity IDs from `POST` responses into subsequent `GET`, `PUT`, and `DELETE` requests.
-- **Autonomous Dynamic Auth**: Pre-flight registration and login flow automatically extracts Bearer JWT tokens.
+- **Authentication Setup**: Optional registration and login flow extracts Bearer JWT tokens when the target schema supports it.
 - **Multi-Category Test Suites**: Generates Happy Path, Validation, Boundary, Negative, and Authentication test suites automatically.
 - **Asynchronous Execution Pool**: Runs tests in parallel with configurable worker limits (`--concurrency 4-16`).
 - **Dual-Layer Root Cause Analysis**: Pairs deterministic HTTP error categorization with confidence-scored AI diagnosis.
-- **Multi-Provider AI Intelligence**: Seamless out-of-the-box support for Google Gemini, OpenAI, Claude, Mistral, Ollama, and DeepSeek.
-- **Actionable Remediation**: Produces concrete code-fix and payload adjustment recommendations.
-- **Interactive HTML & JSON Reports**: Comprehensive dashboard with execution timelines, failure taxonomy, and step traces.
+- **Optional LLM Analysis**: Supports Gemini, OpenAI, Claude, Mistral, Ollama, and DeepSeek when credentials or local endpoints are configured.
+- **Suggested Fixes**: Produces code or payload recommendations for review.
+- **HTML & JSON Reports**: Includes execution timing, failure categories, and step traces.
 
 ---
 
@@ -167,7 +167,7 @@ playwright install chromium
 ### 2. Run Test Suite Against an API
 
 ```bash
-# Basic test execution with autonomous auth & DAG chaining
+# Basic test execution with authentication setup and dependency ordering
 recon test http://localhost:8000
 
 # With bounded concurrency & custom OpenAPI path

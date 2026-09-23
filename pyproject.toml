@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "recon-qa"
 version = "0.2.0"
-description = "Recon: AI QA Agent — Autonomous API & Web Testing, DAG Stateful Chaining, and Root-Cause Analysis Platform"
+description = "OpenAPI and browser test generation with optional LLM-assisted failure analysis"
 readme = "README.md"
 requires-python = ">=3.12"
 license = { text = "MIT" }

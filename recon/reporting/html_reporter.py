@@ -151,7 +151,7 @@ class HTMLReporter:
             <div class="brand">
                 <div class="badge-logo">RECON</div>
                 <div class="title">
-                    <h1>Autonomous QA Test Report</h1>
+                    <h1>QA Test Report</h1>
                     <p>Target: <strong>{html.escape(summary.target_url)}</strong> &bull; Run ID: <code>{html.escape(summary.run_id)}</code></p>
                 </div>
             </div>
