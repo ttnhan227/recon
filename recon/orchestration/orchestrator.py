@@ -132,7 +132,9 @@ class TestOrchestrator:
                 reg_payload["email"] = test_email
                 reg_payload["password"] = test_password
                 if "companyName" in reg_payload or not reg_payload:
-                    reg_payload["companyName"] = "Recon Enterprise QA"
+                    # Many applications require tenant/workspace names to be unique.
+                    # Reusing one name makes every subsequent QA run fail preflight.
+                    reg_payload["companyName"] = f"Recon QA Test {uuid.uuid4().hex[:8]}"
                 if "fullName" in reg_payload:
                     reg_payload["fullName"] = "Recon QA Tester"
 
@@ -186,7 +188,9 @@ class TestOrchestrator:
                         data = resp.json()
                         token = self._extract_token_recursive(data)
                         if token:
-                            logger.info("Authentication setup: captured OAuth2 token from form login.")
+                            logger.info(
+                                "Authentication setup: captured OAuth2 token from form login."
+                            )
                             auth_headers["Authorization"] = f"Bearer {token}"
                             StatePool.get_instance().auth_token = token
                             return auth_headers

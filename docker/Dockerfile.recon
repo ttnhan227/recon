@@ -39,14 +39,15 @@ RUN groupadd -r recon && useradd -r -g recon -u 1000 -d /app -s /bin/bash reconu
 RUN pip install --no-cache-dir "playwright>=1.44.0" \
     && python -m playwright install --with-deps chromium
 
-# Copy dependency specifications first to leverage caching
+# Copy package metadata and source before installing the project.  The source
+# must be present when setuptools builds the wheel; copying it afterwards
+# leaves the `recon` console script pointing at a package that was never
+# installed.
 COPY pyproject.toml README.md ./
-
-# Install project dependencies
-RUN pip install --no-cache-dir .[browser]
-
-# Copy application source code
 COPY recon/ ./recon/
+
+# Install project dependencies and the Recon package itself.
+RUN pip install --no-cache-dir .[browser]
 
 # Finalize ownership for non-root user
 RUN chown -R reconuser:recon /app

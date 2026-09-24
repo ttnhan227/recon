@@ -1,0 +1,48 @@
+name: Trial feedback
+description: Tell us what happened when you tried Recon QA on a real API
+title: "[Feedback]: "
+labels: ["feedback"]
+body:
+  - type: markdown
+    attributes:
+      value: Thanks for trying Recon QA. Do not include API keys, credentials, private URLs, or sensitive response data.
+  - type: dropdown
+    id: outcome
+    attributes:
+      label: How far did you get?
+      options:
+        - Installed and generated a report
+        - Installed but could not complete a run
+        - Could not install
+        - Evaluated the documentation only
+    validations:
+      required: true
+  - type: input
+    id: stack
+    attributes:
+      label: API framework or OpenAPI generator
+      placeholder: "FastAPI, Springdoc, Swashbuckle, generated YAML, etc."
+  - type: textarea
+    id: useful
+    attributes:
+      label: What was useful?
+    validations:
+      required: true
+  - type: textarea
+    id: friction
+    attributes:
+      label: What was confusing or blocked you?
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Sanitized reproduction or specification excerpt
+      description: Remove secrets and private application data.
+  - type: checkboxes
+    id: authorization
+    attributes:
+      label: Target authorization
+      options:
+        - label: I owned or was authorized to test the target.
+          required: true

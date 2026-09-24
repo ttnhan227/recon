@@ -1,199 +1,193 @@
 <p align="center">
-  <img src="docs/assets/banner.svg" alt="Recon Banner" width="100%">
+  <img src="https://raw.githubusercontent.com/ttnhan227/recon/main/docs/assets/banner.svg" alt="Recon QA" width="100%">
 </p>
 
 <p align="center">
-  <strong>A Python QA tool that discovers OpenAPI endpoints and web pages, generates API and browser tests, runs them with bounded concurrency, and provides deterministic or optional LLM-assisted failure analysis.</strong>
+  <strong>Turn an OpenAPI spec into executable API checks and an HTML failure report.</strong>
 </p>
 
 <p align="center">
-  <a href="https://pypi.org/project/recon-qa/"><img src="https://img.shields.io/pypi/v/recon-qa.svg" alt="PyPI Version"></a>
-  <img src="https://img.shields.io/badge/Python-3.12+-blue.svg" alt="Python Version">
-  <img src="https://img.shields.io/badge/FastAPI-0.115+-009688.svg" alt="FastAPI">
-  <img src="https://img.shields.io/badge/Playwright-Async-45ba4b.svg" alt="Playwright">
-  <img src="https://img.shields.io/badge/License-MIT-green.svg" alt="License">
+  <a href="https://pypi.org/project/recon-qa/"><img src="https://img.shields.io/pypi/v/recon-qa.svg" alt="PyPI version"></a>
+  <a href="https://github.com/ttnhan227/recon/actions/workflows/ci.yml"><img src="https://github.com/ttnhan227/recon/actions/workflows/ci.yml/badge.svg" alt="CI status"></a>
+  <img src="https://img.shields.io/pypi/pyversions/recon-qa.svg" alt="Supported Python versions">
+  <a href="https://github.com/ttnhan227/recon/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-green.svg" alt="MIT license"></a>
 </p>
 
----
+Recon QA discovers endpoints, derives test cases from their schemas, executes them with bounded concurrency, and writes self-contained HTML and JSON reports. It works without an AI account; LLM-assisted generation and failure analysis are optional.
 
-## Platform Visual Preview
+> **Use Recon only on applications you own or are explicitly authorized to test.** Generated requests can create, update, or delete data described by the target API.
 
-| CLI Test Runner | HTML Report & Failure Analysis |
-|:---:|:---:|
-| ![Recon Terminal Execution](docs/screenshots/recon-terminal.png) | ![Interactive HTML Report](docs/screenshots/recon-report.png) |
+## Try it in two minutes
 
----
-
-## Quick Demo
+Requires Python 3.12 or newer.
 
 ```bash
-# 1. Install directly from PyPI
-pip install recon-qa
-
-# 2. Run automated test suite against any running API or OpenAPI spec
-recon test https://petstore.swagger.io/v2/swagger.json --concurrency 4
+python -m pip install recon-qa
+recon demo
 ```
+
+`recon demo` starts an intentionally defective application on your machine, tests it, and produces a real report without an API key or external service. Finding failures is the expected successful outcome.
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/ttnhan227/recon/main/docs/assets/demo.gif" alt="Recon QA local demo: installation, OpenAPI discovery, generated checks, detected defects, and HTML report" width="900">
+</p>
+
+```bash
+recon report
+```
+
+That opens the latest report in your browser, with every generated check, observed response, assertion, and failure classification available for review.
+
+## Test your own API
+
+For an application that exposes OpenAPI at a conventional path such as `/openapi.json` or `/swagger.json`:
+
+```bash
+recon test http://localhost:8000 --no-ai
+```
+
+Pass a non-standard local or remote specification explicitly:
+
+```bash
+recon test http://localhost:8000 --spec ./openapi.yaml --no-ai
+```
+
+Common options:
+
+```bash
+# Include browser discovery and checks
+python -m pip install "recon-qa[browser]"
+python -m playwright install chromium
+recon test http://localhost:8000 --browser --no-ai
+
+# Supply authentication without storing it in Recon configuration
+recon test http://localhost:8000 \
+  --header "Authorization: Bearer <token>" \
+  --no-ai
+
+# Limit a run to selected routes
+recon test http://localhost:8000 \
+  --include "/api/orders*" \
+  --exclude "/api/admin*" \
+  --no-ai
+```
+
+On PowerShell, replace the trailing `\` characters with backticks or put the command on one line.
+
+Reports are stored under `~/.recon/reports/` by default. Use `--report-dir` to choose another location. A test run exits with code `1` when it finds failed checks, which makes the command useful as a CI quality gate.
+
+## What Recon checks
+
+- Discovers OpenAPI 3.x and Swagger 2.0 operations.
+- Generates happy-path, validation, boundary, negative, and authentication cases.
+- Uses schema constraints including types, enums, numeric ranges, string lengths, and formats.
+- Orders dependent operations and can reuse IDs returned by earlier requests.
+- Applies bounded asynchronous concurrency.
+- Classifies HTTP, timeout, assertion, and security-related failures.
+- Produces standalone HTML reports and machine-readable JSON results.
+- Optionally crawls pages and runs Playwright browser checks.
+- Optionally asks a configured LLM for additional cases and failure explanations.
+
+Recon is intended to expose suspicious behavior for review. It is not a proof of correctness, a replacement for application-specific tests, or a substitute for a professional security assessment.
+
+## Useful commands
 
 ```text
-+-----------------------------------------------------------------------------+
-| Recon QA                                                                    |
-| Target: https://petstore.swagger.io/v2/swagger.json | Concurrency: 4        |
-+-----------------------------------------------------------------------------+
-[INFO] Auto-detected OpenAPI specification at swagger.json
-[INFO] Generated 24 test cases (Happy Path, Boundary, Validation, Auth)
-[INFO] Executing 24 tests with concurrency=4
- PASSED API-001 [POST /v2/pet] Happy Path - Valid Request (42ms)
- PASSED API-002 [GET /v2/pet/findByStatus] Happy Path - Valid Status (38ms)
- FAILED API-003 [POST /v2/pet] Boundary - Empty Body (55ms) - HTTP 400
- PASSED API-004 [GET /v2/user/login] Auth - Valid Credentials (21ms)
- ...
-[INFO] Failure analysis:
- ↳ Identified missing required property in payload for /v2/pet (Confidence: 92%)
- ↳ Suggested Fix: Ensure required 'name' and 'photoUrls' fields are provided in request body
-
-+------------------------- Recon Test Run Completed --------------------------+
-| Execution Summary                                                           |
-|   Total Tests : 24  |  Passed : 22  |  Failed : 2  |  Pass Rate : 91.7%     |
-|   HTML Report : reports/run-20260828-095131-1b5354/report.html              |
-|   Latest Link : reports/latest.html                                         |
-+-----------------------------------------------------------------------------+
+recon demo                 Run the reproducible local example
+recon scan <target>        Discover API routes and optional web pages
+recon generate <target>    Write the generated test suite as JSON
+recon test <target>        Run discovery, generation, execution, and reporting
+recon report               Open the latest HTML report
+recon doctor               Check the local runtime and optional browser setup
+recon providers            Show available AI provider configuration
+recon --help               Show every command and option
 ```
 
----
+## Optional AI analysis
 
-## Architecture & Pipeline
-
-Recon coordinates automated endpoint discovery, test matrix generation, bounded async workers, and dual-layer failure classification.
-
-### End-to-End Execution Flow
-
-```text
-Target Application URL / OpenAPI Spec
-        │
-        ▼
-  Discovery Engine ──► OpenAPI 3.x / Swagger Parser & Playwright Crawler
-        │
-        ▼
-  Automatic Auth Setup ──► Schema-driven Registration & Bearer Token Injection
-        │
-        ▼
-  DAG Test Planner & Ordering
-        │
-        ├── 1. Root Entity Creation (POST endpoints ──► Harvest IDs into StatePool)
-        ├── 2. Stateful Query / Detail Operations (Substitute real entity IDs into {params})
-        ├── 3. Boundary & Validation Checks (Empty strings, zero values, negative IDs)
-        ├── 4. Strict Enum & Schema Violations (Negative type and enum assertion probes)
-        └── 5. Security & Error Handling (401/403 credential rejection & 404 handling)
-        │
-        ▼
-  Async Worker Pool (Bounded Concurrency: 4–16 workers)
-        │
-        ├── API Runner with Dynamic DAG State Substitution
-        └── Browser Runner (Playwright headless DOM navigation)
-        │
-        ▼
-  Evidence Collector (HTTP traces, responses, DOM logs)
-        │
-        ├── Deterministic Failure Classifier (HTTP 4xx/5xx, timeouts, assertions)
-        └── AI Root-Cause Analyzer (Fact extraction ──► Hypothesis ──► Suggested Fix)
-        │
-        ▼
-  Self-Contained Interactive HTML Report + JSON Telemetry
-```
-
-### Core Services
-
-| Module | Technology | Role |
-|---|---|---|
-| Discovery Engine | Pydantic v2 + httpx | Auto-detects OpenAPI 3.0, 3.1 & Swagger 2.0 specs |
-| Test Planner & DAG | Python 3.12 AST | Generates categorized test matrices with topological dependency ordering |
-| State Pool Engine | Thread-Safe StateStore | Harvests created entity IDs and injects them into downstream test routes |
-| Authentication Setup | Schema-derived requests | Optional registration/login flow with JWT token extraction |
-| Concurrency Pool | `asyncio` + WorkerPool | Bounded parallel test execution (4–16 workers) |
-| RCA Engine | Deterministic + LLM | Rule-based failure classification & AI remediation recommendations |
-| Reporting | Jinja2 + Tailwind CSS | Standalone interactive HTML reports with assertion step diffs |
-| CLI Interface | Typer + Rich | Colorized terminal telemetry and interactive progress meters |
-
-### Implementation Notes
-
-- **Deterministic Results** — Test outcomes come from concrete assertions; optional LLM calls are used only for exploratory cases and failure suggestions.
-- **Dependency Ordering** — Creation requests can run before dependent routes, with generated IDs stored in a runtime `StatePool`.
-- **Authentication Setup** — Recon can build registration/login requests from discovered schemas and reuse extracted bearer tokens.
-- **OpenAPI Constraint Handling** — Generated payloads use schema fields such as `enum`, `minimum`, `maximum`, `minLength`, and common formats.
-- **Bounded Worker Pool** — An asyncio queue limits concurrent test execution.
-- **Optional LLM Providers** — Gemini, OpenAI, Claude, Mistral, Ollama, DeepSeek, and compatible custom endpoints are supported when configured.
-- **Standalone HTML Reports** — Styles, report data, and available screenshots are embedded for offline review.
-
----
-
-## Features
-
-- **Automated OpenAPI Discovery**: Parses OpenAPI 3.0, 3.1, and Swagger 2.0 schemas into strongly-typed parameter trees.
-- **Stateful Chaining (DAG)**: Automatically feeds created entity IDs from `POST` responses into subsequent `GET`, `PUT`, and `DELETE` requests.
-- **Authentication Setup**: Optional registration and login flow extracts Bearer JWT tokens when the target schema supports it.
-- **Multi-Category Test Suites**: Generates Happy Path, Validation, Boundary, Negative, and Authentication test suites automatically.
-- **Asynchronous Execution Pool**: Runs tests in parallel with configurable worker limits (`--concurrency 4-16`).
-- **Dual-Layer Root Cause Analysis**: Pairs deterministic HTTP error categorization with confidence-scored AI diagnosis.
-- **Optional LLM Analysis**: Supports Gemini, OpenAI, Claude, Mistral, Ollama, and DeepSeek when credentials or local endpoints are configured.
-- **Suggested Fixes**: Produces code or payload recommendations for review.
-- **HTML & JSON Reports**: Includes execution timing, failure categories, and step traces.
-
----
-
-## Tech Stack
-
-- **Core Engine**: Python 3.12, Pydantic v2, httpx, asyncio
-- **CLI & UX**: Typer, Rich
-- **Browser Automation**: Playwright Async
-- **Analysis & AI**: Google Gemini, OpenAI, Claude, Mistral, Ollama, DeepSeek
-- **Persistence & Reports**: SQLAlchemy, SQLite, Jinja2, HTML5/CSS3
-- **Distribution**: PyPI (`recon-qa`)
-
----
-
-## Getting Started
-
-### 1. Installation
+The default provider is `mock`, a deterministic offline implementation used for development and demonstrations. Real providers are opt-in and use your own credentials.
 
 ```bash
-# Core CLI + AI testing (includes Google Gemini, OpenAI, Claude, Mistral, Ollama)
-pip install recon-qa
-
-# With Playwright browser testing support
-pip install "recon-qa[browser]"
-playwright install chromium
-```
-
-### 2. Run Test Suite Against an API
-
-```bash
-# Basic test execution with authentication setup and dependency ordering
-recon test http://localhost:8000
-
-# With bounded concurrency & custom OpenAPI path
-recon test http://localhost:8000 --spec /api/v1/openapi.json --concurrency 8
-
-# With explicit authorization header if using pre-existing static token
-recon test http://localhost:8000 --header "Authorization: Bearer <your-token>"
-
-# With AI Root-Cause Analysis enabled
+recon set-key
+recon use openai
 recon test http://localhost:8000 --ai
 ```
 
----
+Supported REST integrations include Gemini, OpenAI, Anthropic, Mistral, Ollama, and other OpenAI-compatible endpoints. Use `recon providers` to inspect the active configuration. Keep credentials in environment variables or Recon's local configuration—never commit them.
 
-## Testing & Quality Assurance
+## CI example
 
-```bash
-# Run unit & integration test suites
-pytest tests/ -v
+```yaml
+name: API quality
+on: [push, pull_request]
 
-# Run with coverage report
-pytest --cov=recon tests/
+jobs:
+  recon:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install recon-qa
+      - run: recon test http://127.0.0.1:8000 --no-ai
 ```
 
----
+Start your application in an earlier step and upload the chosen report directory as an artifact if the report should be retained.
+
+## How the pipeline fits together
+
+```text
+OpenAPI document / application URL
+              │
+              ▼
+       Endpoint discovery
+              │
+              ▼
+  Schema-driven test generation
+              │
+              ▼
+ Stateful, bounded execution ───── optional Playwright checks
+              │
+              ▼
+ Deterministic classification ──── optional LLM analysis
+              │
+              ▼
+        HTML + JSON reports
+```
+
+The LLM layer does not decide whether deterministic assertions passed or failed.
+
+## Current limitations
+
+- Python 3.12 or newer is required.
+- Authentication discovery handles common flows but cannot infer every custom login or multi-factor workflow.
+- Generated payloads are schema-driven and may not satisfy undocumented business rules.
+- Browser support requires the `browser` extra and a separate Chromium installation.
+- OpenAPI documents that rely heavily on vendor extensions may need a reduced reproduction and compatibility fix.
+- The project is alpha software; review generated requests before pointing it at data-bearing environments.
+
+## Development
+
+```bash
+git clone https://github.com/ttnhan227/recon.git
+cd recon
+python -m pip install -e ".[browser,dev]"
+python -m playwright install chromium
+
+ruff check .
+ruff format --check .
+mypy recon tests
+pytest -q
+python -m build
+```
+
+See the [contribution guide](https://github.com/ttnhan227/recon/blob/main/CONTRIBUTING.md) before proposing a change, the [roadmap](https://github.com/ttnhan227/recon/blob/main/ROADMAP.md) for current priorities, and the [changelog](https://github.com/ttnhan227/recon/blob/main/CHANGELOG.md) for release history.
+
+## Feedback wanted
+
+If you try Recon against a real API, please share what worked, what blocked you, and the framework or OpenAPI generator you used in the [trial feedback form](https://github.com/ttnhan227/recon/issues/new?template=feedback.yml). Sanitized minimal specifications are especially useful. See the [technical walkthrough](https://github.com/ttnhan227/recon/blob/main/docs/introducing-recon-qa.md) for a concise explanation you can share with another developer.
 
 ## License
 
-MIT
+Recon QA is available under the [MIT License](https://github.com/ttnhan227/recon/blob/main/LICENSE).

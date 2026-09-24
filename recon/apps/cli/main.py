@@ -311,7 +311,7 @@ def test_command(
             and (r.status == TestStatus.FAILED or r.status == TestStatus.ERROR)
         ]
         if failed_results:
-            console.print("\n[bold cyan]AI Root Cause Analysis Highlight:[/bold cyan]")
+            console.print("\n[bold cyan]Failure Analysis Highlights:[/bold cyan]")
             for fr in failed_results[:2]:
                 fa = fr.failure_analysis
                 if fa:
@@ -526,6 +526,121 @@ def serve_demo_command(
     console.print(f"[dim]OpenAPI Docs: http://{host}:{port}/docs[/dim]")
     console.print(f"[dim]Web Interface: http://{host}:{port}/[/dim]\n")
     uvicorn.run("recon.demo_app.main:app", host=host, port=port, log_level="info")
+
+
+@app.command("demo")
+def demo_command(
+    port: Annotated[
+        int, typer.Option("--port", "-p", help="Local port for the temporary demo application")
+    ] = 8765,
+    browser: Annotated[
+        bool, typer.Option("--browser", "-b", help="Also exercise browser discovery and checks")
+    ] = False,
+    report_dir: Annotated[
+        Optional[Path], typer.Option("--report-dir", "-r", help="Directory for demo reports")
+    ] = None,
+):
+    """Runs the intentionally broken local demo and produces a sample HTML report."""
+    import subprocess
+    import sys
+    import time
+
+    import httpx
+
+    target = f"http://127.0.0.1:{port}"
+    actual_report_dir = (report_dir or (settings.reports_dir / get_project_slug(target))).resolve()
+    actual_report_dir.mkdir(parents=True, exist_ok=True)
+    latest_report = actual_report_dir / "latest.html"
+    previous_report_mtime = latest_report.stat().st_mtime_ns if latest_report.exists() else None
+
+    console.print(
+        Panel(
+            "Recon will start a local application containing known defects, test it, "
+            "and generate an HTML report. No API key or external target is required.",
+            title="[bold cyan]Recon QA local demo[/bold cyan]",
+            border_style="cyan",
+        )
+    )
+
+    server = subprocess.Popen(
+        [
+            sys.executable,
+            "-m",
+            "uvicorn",
+            "recon.demo_app.main:app",
+            "--host",
+            "127.0.0.1",
+            "--port",
+            str(port),
+            "--log-level",
+            "warning",
+        ],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.STDOUT,
+    )
+
+    try:
+        deadline = time.monotonic() + 12
+        while time.monotonic() < deadline:
+            if server.poll() is not None:
+                console.print(
+                    f"[red]The demo application could not start on port {port}. "
+                    "Choose another port with --port.[/red]"
+                )
+                raise typer.Exit(code=1)
+            try:
+                response = httpx.get(f"{target}/api/health", timeout=0.5)
+                if response.status_code == 200:
+                    break
+            except httpx.HTTPError:
+                pass
+            time.sleep(0.2)
+        else:
+            console.print("[red]Timed out while starting the local demo application.[/red]")
+            raise typer.Exit(code=1)
+
+        command = [
+            sys.executable,
+            "-m",
+            "recon.apps.cli.main",
+            "test",
+            target,
+            "--no-ai",
+            "--report-dir",
+            str(actual_report_dir),
+        ]
+        if browser:
+            command.append("--browser")
+
+        completed = subprocess.run(command, check=False)
+        report_was_created = latest_report.exists() and (
+            previous_report_mtime is None
+            or latest_report.stat().st_mtime_ns > previous_report_mtime
+        )
+        if completed.returncode not in (0, 1) or not report_was_created:
+            console.print("[red]The demo run did not produce a report.[/red]")
+            raise typer.Exit(code=1)
+
+        report_command_hint = "recon report"
+        if report_dir:
+            report_command_hint += f' --report-dir "{actual_report_dir}"'
+
+        console.print(
+            Panel(
+                f"[bold green]Demo complete.[/bold green] Recon intentionally found defects.\n"
+                f"HTML report: [bold]{latest_report}[/bold]\n\n"
+                f"Run [cyan]{report_command_hint}[/cyan] to open this report.",
+                border_style="green",
+            )
+        )
+    finally:
+        if server.poll() is None:
+            server.terminate()
+            try:
+                server.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                server.kill()
+                server.wait(timeout=5)
 
 
 @app.command("serve-api")

@@ -7,6 +7,8 @@ from urllib.parse import urlparse
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from recon import __version__
+
 
 def get_recon_home() -> Path:
     """Returns ~/.recon base directory and ensures it exists."""
@@ -80,7 +82,7 @@ class ReconSettings(BaseSettings):
 
     # General
     app_name: str = "Recon QA"
-    version: str = "0.2.0"
+    version: str = __version__
     log_level: str = "INFO"
     json_logs: bool = False
 

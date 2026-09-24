@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.2.1] - 2026-09-24
+
+### Added
+- **One-command local demo**: `recon demo` starts the bundled defective application, runs a deterministic API test suite, and produces an HTML report without external services or an API key.
+- **Installed-wheel CI smoke test**: CI now builds and validates both distributions, installs the wheel into a clean environment, and checks the packaged CLI.
+- **Open-source project guides**: Added the MIT license, contribution guide, public roadmap, and structured GitHub issue forms.
+
+### Changed
+- Reworked the README around a verified two-minute quick start, real commands, safety guidance, current limitations, and a copy-paste CI example.
+- Moved pytest and pytest-asyncio out of runtime dependencies and into the development extra.
+- Renamed the CLI's failure summary so deterministic analysis is not incorrectly labeled as AI output.
+
+### Fixed
+- Ensured the Docker image copies package sources before installing the project.
+- Made generated registration workspace names unique across repeated test runs.
+
+---
+
 ## [0.1.3] - 2026-08-31
 
 ### Added
