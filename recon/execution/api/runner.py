@@ -17,7 +17,12 @@ from recon.common.models import (
     TestResult,
     TestStatus,
 )
-from recon.common.security import redact_headers, redact_sensitive_data, validate_target_url
+from recon.common.security import (
+    redact_headers,
+    redact_sensitive_data,
+    redact_url,
+    validate_target_url,
+)
 from recon.execution.api.assertions import evaluate_assertion
 from recon.orchestration.state_pool import StatePool
 
@@ -130,6 +135,11 @@ class APITestRunner:
         if cat_str in ("HAPPY_PATH", "EXPLORATORY", "REGRESSION"):
             body = state_pool.substitute_payload(body)
 
+        # Dynamic Auth Token Injection (if not an auth rejection test and no header set)
+        if cat_str != "AUTHENTICATION" and not any(k.lower() == "authorization" for k in headers):
+            if state_pool.auth_token:
+                headers["Authorization"] = f"Bearer {state_pool.auth_token}"
+
         # Validate URL security / SSRF
         validate_target_url(endpoint)
 
@@ -173,7 +183,7 @@ class APITestRunner:
             err_msg = f"HTTP request failed after {attempt} attempts: {last_exception}"
             err_trace = HTTPTrace(
                 request_method=method,
-                request_url=endpoint,
+                request_url=redact_url(endpoint),
                 request_headers=redact_headers(headers),
                 request_body=redact_sensitive_data(body),
                 response_status=None,
@@ -213,7 +223,7 @@ class APITestRunner:
 
         trace = HTTPTrace(
             request_method=method,
-            request_url=str(response.url),
+            request_url=redact_url(str(response.url)),
             request_headers=redact_headers(headers),
             request_body=redact_sensitive_data(body),
             response_status=resp_status,

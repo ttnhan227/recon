@@ -4,6 +4,32 @@ import uuid
 from typing import Any
 
 
+def _resolve_prop_schema(prop_schema: dict[str, Any]) -> dict[str, Any]:
+    if not isinstance(prop_schema, dict):
+        return {}
+    if "anyOf" in prop_schema and isinstance(prop_schema["anyOf"], list):
+        non_null = [
+            v for v in prop_schema["anyOf"] if isinstance(v, dict) and v.get("type") != "null"
+        ]
+        if non_null:
+            merged = {**non_null[0]}
+            for k, v in prop_schema.items():
+                if k not in ("anyOf", "type") and k not in merged:
+                    merged[k] = v
+            return merged
+    if "oneOf" in prop_schema and isinstance(prop_schema["oneOf"], list):
+        non_null = [
+            v for v in prop_schema["oneOf"] if isinstance(v, dict) and v.get("type") != "null"
+        ]
+        if non_null:
+            merged = {**non_null[0]}
+            for k, v in prop_schema.items():
+                if k not in ("oneOf", "type") and k not in merged:
+                    merged[k] = v
+            return merged
+    return prop_schema
+
+
 class SchemaFuzzer:
     """Generates valid, boundary, and negative payloads from JSON schemas with strict constraint adherence."""
 
@@ -12,6 +38,7 @@ class SchemaFuzzer:
         if not prop_schema or not isinstance(prop_schema, dict):
             return "test_val"
 
+        prop_schema = _resolve_prop_schema(prop_schema)
         p_type = prop_schema.get("type", "string")
         p_format = prop_schema.get("format")
         p_enum = prop_schema.get("enum")
@@ -132,6 +159,7 @@ class SchemaFuzzer:
         for prop_name, prop_schema in properties.items():
             if not isinstance(prop_schema, dict):
                 continue
+            prop_schema = _resolve_prop_schema(prop_schema)
             p_type = prop_schema.get("type", "string")
 
             if p_type == "string":
@@ -198,6 +226,7 @@ class SchemaFuzzer:
         for prop_name, prop_schema in properties.items():
             if not isinstance(prop_schema, dict):
                 continue
+            prop_schema = _resolve_prop_schema(prop_schema)
             p_type = prop_schema.get("type", "string")
             p_enum = prop_schema.get("enum")
 

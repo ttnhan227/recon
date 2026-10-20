@@ -47,24 +47,28 @@ def evaluate_assertion(
     # 1. STATUS_CODE
     if assertion.assertion_type == AssertionType.STATUS_CODE:
         actual_code = status_code
-        if isinstance(expected, list):
-            passed = actual_code in expected
-        elif op == "eq" or op == "in":
-            passed = actual_code == expected or (
-                isinstance(expected, (list, tuple, set)) and actual_code in expected
-            )
-        elif op == "ne":
-            passed = actual_code != expected
+        if actual_code is None:
+            passed = False
+            msg = assertion.message or "Request failed without a response status code."
         else:
-            passed = actual_code == expected
+            if isinstance(expected, list):
+                passed = actual_code in expected
+            elif op == "eq" or op == "in":
+                passed = actual_code == expected or (
+                    isinstance(expected, (list, tuple, set)) and actual_code in expected
+                )
+            elif op == "ne":
+                passed = actual_code != expected
+            else:
+                passed = actual_code == expected
 
-        msg = (
-            assertion.message
-            if assertion.message and not passed
-            else (
-                f"Status {actual_code} {'matched' if passed else 'did not match'} expected {expected}"
+            msg = (
+                assertion.message
+                if assertion.message and not passed
+                else (
+                    f"Status {actual_code} {'matched' if passed else 'did not match'} expected {expected}"
+                )
             )
-        )
         return AssertionResult(
             assertion_type=AssertionType.STATUS_CODE,
             passed=passed,
@@ -191,10 +195,10 @@ def evaluate_assertion(
     # 6. HEADER_EQUALS / HEADER_CONTAINS
     elif assertion.assertion_type in (AssertionType.HEADER_EQUALS, AssertionType.HEADER_CONTAINS):
         h_name = (assertion.target or "").lower()
-        actual_h = headers.get(h_name, "")
+        actual_h = next((v for k, v in headers.items() if k.lower() == h_name), "")
         if assertion.assertion_type == AssertionType.HEADER_CONTAINS:
             passed = str(expected).lower() in actual_h.lower()
-            default_msg = f"Header '{h_name}' ({actual_h}) did not contain '{expected}'"
+            default_msg = f"Header '{h_name}' ('{actual_h}') did not contain '{expected}'"
         else:
             passed = actual_h.lower() == str(expected).lower()
             default_msg = f"Header '{h_name}' was '{actual_h}', expected '{expected}'"

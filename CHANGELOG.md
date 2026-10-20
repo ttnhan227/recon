@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.2.2] - 2026-10-19
+
+### Added
+- **Topological Wave Execution**: Bounded worker pool partitions test cases into deterministic dependency tiers (Wave 1: POST root entities, Wave 2: GET list queries, Wave 3: details/validation/boundary, Wave 4: destructive DELETE cleanups, Wave 5: browser checks) to eliminate state race conditions.
+- **Markdown Test Reporter**: Added `MarkdownReporter` (`recon.reporting.markdown_reporter`) for CI pipelines and pull request comments, outputting structured run summaries and failure breakdowns.
+- **Comprehensive Audit Regression Test Suite**: Added `tests/unit/test_audit_fixes.py` verifying worker pool exception isolation, schema cycle handling, security redaction, and assertion logic.
+
+### Fixed
+- **WorkerPool Test Loss Prevention**: Captured unhandled exceptions within worker coroutines, recording them as explicit `TestStatus.ERROR` results with `FailureCategory.INFRASTRUCTURE_ERROR` rather than silently dropping tests from the final count.
+- **OpenAPI Circular `$ref` Protection**: Implemented recursion cycle detection in `resolve_ref` and `_resolve_schema` to prevent `RecursionError` crashes on recursive schemas, and added fallback handling for relative server URLs.
+- **Sensitive Credential & URL Scrubbing**: Expanded redaction to catch compound key variants (`database_master_password`, `jwt_private_key`, `client_secret`, etc.), scrubbed embedded PEM private key blocks from string payloads, and added `redact_url` to strip sensitive credentials and query tokens from HTTP traces and logs.
+- **Browser Automation Resource Cleanup & Assertion Enforcement**: Wrapped Playwright browser lifecycle in a `try...finally: await browser.close()` block to prevent orphan browser processes on aborted steps, and implemented full evaluation of browser step assertions (`RESPONSE_TIME_MS`, `TEXT_VISIBLE`, `ELEMENT_EXISTS`, `URL_MATCHES`).
+- **Case-Insensitive HTTP Header Matching**: Normalized HTTP headers to lowercase in `evaluate_assertion` to avoid false assertion failures caused by case sensitivity differences across servers.
+- **Status Code Assertion Null Guard**: Guarded against null response status codes in `STATUS_CODE` assertions to prevent false passes when `ne` operators are evaluated against failed connections.
+- **Security Failure Classification**: Fixed failure classifier to accurately categorize unauthorized route access failures as `AUTHENTICATION_FAILURE` or `AUTHORIZATION_FAILURE` instead of generic assertion failures.
+
+---
+
 ## [0.2.1] - 2026-09-24
 
 ### Added

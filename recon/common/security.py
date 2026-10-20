@@ -76,17 +76,86 @@ def validate_target_url(url: str, allow_localhost: bool = True) -> str:
     return url
 
 
+def _is_sensitive_key(key: str, sensitive_keys: set[str]) -> bool:
+    """Checks if a key matches any sensitive keywords directly or as a compound token."""
+    k_lower = key.lower().replace("-", "_")
+    if k_lower in sensitive_keys:
+        return True
+    sensitive_tokens = (
+        "password",
+        "passwd",
+        "secret",
+        "private_key",
+        "privatekey",
+        "token",
+        "api_key",
+        "apikey",
+        "credential",
+        "credit_card",
+        "cvv",
+        "ssn",
+    )
+    return any(token in k_lower for token in sensitive_tokens)
+
+
 def redact_headers(headers: dict[str, str]) -> dict[str, str]:
     """Redacts sensitive header values such as Authorization, Cookie, API tokens."""
     redacted = {}
     sensitive_keys = {k.lower() for k in settings.redact_sensitive_headers}
 
     for key, value in headers.items():
-        if key.lower() in sensitive_keys:
+        k_lower = key.lower()
+        if k_lower in sensitive_keys or any(
+            token in k_lower
+            for token in ("authorization", "cookie", "token", "secret", "api_key", "apikey")
+        ):
             redacted[key] = "***REDACTED***"
         else:
             redacted[key] = value
     return redacted
+
+
+def redact_url(url: str) -> str:
+    """Redacts user credentials and sensitive query parameters from URLs."""
+    if not url:
+        return url
+    try:
+        from urllib.parse import parse_qsl, urlencode
+
+        parsed = urlparse(url)
+        netloc = parsed.netloc
+        if "@" in netloc:
+            _, host_part = netloc.split("@", 1)
+            netloc = f"***:***@{host_part}"
+
+        if parsed.query:
+            query_pairs = parse_qsl(parsed.query, keep_blank_values=True)
+            sensitive_params = (
+                "token",
+                "api_key",
+                "apikey",
+                "key",
+                "secret",
+                "password",
+                "auth",
+                "access_token",
+                "refresh_token",
+                "sig",
+                "signature",
+            )
+            redacted_pairs = []
+            for qk, qv in query_pairs:
+                if any(sp in qk.lower() for sp in sensitive_params):
+                    redacted_pairs.append((qk, "***REDACTED***"))
+                else:
+                    redacted_pairs.append((qk, qv))
+            new_query = urlencode(redacted_pairs)
+            parsed = parsed._replace(netloc=netloc, query=new_query)
+        else:
+            parsed = parsed._replace(netloc=netloc)
+        return parsed.geturl()
+    except Exception:
+        return url
 
 
 def redact_sensitive_data(data: Any) -> Any:
@@ -96,7 +165,7 @@ def redact_sensitive_data(data: Any) -> Any:
     if isinstance(data, dict):
         result = {}
         for k, v in data.items():
-            if str(k).lower() in sensitive_keys:
+            if _is_sensitive_key(str(k), sensitive_keys):
                 result[k] = "***REDACTED***"
             else:
                 result[k] = redact_sensitive_data(v)
@@ -106,11 +175,17 @@ def redact_sensitive_data(data: Any) -> Any:
         return [redact_sensitive_data(item) for item in data]
 
     if isinstance(data, str):
+        # Redact PEM private keys
+        redacted_str = re.sub(
+            r"-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z ]*PRIVATE KEY-----",
+            "***REDACTED PRIVATE KEY***",
+            data,
+        )
         # Redact Bearer tokens in text
         redacted_str = re.sub(
             r"(Bearer\s+)[A-Za-z0-9\-\._~\+\/]+=*",
             r"\1***REDACTED***",
-            data,
+            redacted_str,
             flags=re.IGNORECASE,
         )
         # Redact basic auth tokens

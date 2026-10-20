@@ -62,6 +62,13 @@ class TestSuiteGenerator:
                 if param.default:
                     val = param.default
                 elif (
+                    param.schema_definition.get("examples")
+                    and len(param.schema_definition["examples"]) > 0
+                ):
+                    val = param.schema_definition["examples"][0]
+                elif param.schema_definition.get("example"):
+                    val = param.schema_definition.get("example")
+                elif (
                     param.schema_definition.get("format") == "uuid"
                     or param.name.endswith("_id")
                     or param.name == "id"

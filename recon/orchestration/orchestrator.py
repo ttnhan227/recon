@@ -31,6 +31,7 @@ from recon.planning.generator import TestSuiteGenerator
 from recon.planning.schema_fuzzer import SchemaFuzzer
 from recon.reporting.html_reporter import HTMLReporter
 from recon.reporting.json_reporter import JSONReporter
+from recon.reporting.markdown_reporter import MarkdownReporter
 
 
 class TestOrchestrator:
@@ -52,6 +53,7 @@ class TestOrchestrator:
         self.db = DatabaseManager(db_url)
         self.json_reporter = JSONReporter(self.output_dir)
         self.html_reporter = HTMLReporter(self.output_dir)
+        self.markdown_reporter = MarkdownReporter(self.output_dir)
         self.ai_analyzer = AIFailureAnalyzer()
         self.ai_generator = AITestGenerator()
         self.external_api_client = external_api_client
@@ -447,6 +449,7 @@ class TestOrchestrator:
         # 5. Write Reports
         self.json_reporter.write_reports(summary, results)
         self.html_reporter.write_report(summary, results)
+        self.markdown_reporter.write_report(summary, results)
 
         logger.info(
             f"Run completed: total={summary.total}, passed={summary.passed}, failed={summary.failed}, duration={summary.duration_seconds}s"

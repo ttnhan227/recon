@@ -4,6 +4,7 @@ import re
 
 from recon.common.models import (
     FailureCategory,
+    TestCategory,
     TestResult,
     TestStatus,
 )
@@ -93,13 +94,41 @@ class DeterministicFailureClassifier:
         if "timeout" in msg or "timed out" in msg:
             return FailureCategory.TIMEOUT
 
-        if "connection refused" in msg or "network error" in msg or "dns" in msg:
+        # Check explicit network errors
+        for net_err in evidence.network_errors:
+            net_text = f"{net_err.error_text} {net_err.url}".lower()
+            if any(
+                p in net_text
+                for p in (
+                    "connection_refused",
+                    "connection refused",
+                    "err_connection",
+                    "econnrefused",
+                    "name_not_resolved",
+                    "err_name",
+                )
+            ):
+                return FailureCategory.NETWORK_ERROR
+
+        if (
+            "connection refused" in msg
+            or "connection_refused" in msg
+            or "network error" in msg
+            or "dns" in msg
+            or "err_connection" in msg
+            or "econnrefused" in msg
+            or "name_not_resolved" in msg
+        ):
             return FailureCategory.NETWORK_ERROR
 
         # Check assertion results
         for step in result.step_results:
             for ar in step.assertion_results:
                 if not ar.passed:
+                    if result.category == TestCategory.AUTHENTICATION:
+                        return FailureCategory.AUTHENTICATION_FAILURE
+                    if result.category == TestCategory.AUTHORIZATION:
+                        return FailureCategory.AUTHORIZATION_FAILURE
                     return FailureCategory.ASSERTION_FAILURE
 
         return FailureCategory.UNKNOWN

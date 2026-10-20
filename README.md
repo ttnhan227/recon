@@ -84,6 +84,19 @@ Recon keeps the terminal summary concise and puts the evidence in a self-contain
 | :---: | :---: |
 | ![Recon QA terminal output showing discovered routes, generated checks, and detected defects](docs/screenshots/recon-terminal.png) | ![Recon QA HTML report showing results and failure details](docs/screenshots/recon-report.png) |
 
+## Architecture & Execution Pipeline
+
+```mermaid
+flowchart TD
+    Target["Target Web Application / API"] --> Discovery["Discovery Engine\n(OpenAPI 3.x Parser & Web Crawler)"]
+    Discovery --> Fuzzer["Schema Fuzzer & Planner\n(Happy-path, Boundary, Negative & Auth Cases)"]
+    Fuzzer --> Pool["Bounded Async Worker Pool\n(Semaphore Concurrency Control)"]
+    Pool --> Execution["Execution Runner\n(HTTP Client & Playwright Headless Browser)"]
+    Execution --> Classifier["Deterministic Failure Classifier\n(Status Codes, Console Logs, Error Payloads)"]
+    Classifier --> Report["Self-Contained HTML & JSON Reports\n(Failure Screenshots, Traces, Assertions)"]
+    Classifier --> LLM["Optional Multi-Provider LLM RCA\n(Gemini, Mistral, OpenAI, Ollama Diagnostics)"]
+```
+
 ## What Recon checks
 
 - Discovers OpenAPI 3.x and Swagger 2.0 operations.

@@ -12,6 +12,7 @@ from rich.table import Table
 from recon.apps.cli.config_cli import config_app, list_providers, set_key, use_provider
 from recon.apps.cli.doctor import run_doctor
 from recon.common.config import get_project_slug, get_recon_home, settings
+from recon.common.exceptions import ReconError
 from recon.common.logging import console
 from recon.common.models import TestCase, TestResult, TestStatus
 from recon.discovery.endpoint_detector import discover_application
@@ -94,7 +95,11 @@ def scan_command(
                 )
             console.print(p_table)
 
-    asyncio.run(_run())
+    try:
+        asyncio.run(_run())
+    except ReconError as err:
+        console.print(f"[bold red]Error:[/bold red] {err}")
+        raise typer.Exit(code=1)
 
 
 @app.command("generate")
@@ -138,7 +143,11 @@ def generate_command(
             f"[green]✓ Generated {len(tests)} test cases saved to [bold]{out_path}[/bold][/green]"
         )
 
-    asyncio.run(_run())
+    try:
+        asyncio.run(_run())
+    except ReconError as err:
+        console.print(f"[bold red]Error:[/bold red] {err}")
+        raise typer.Exit(code=1)
 
 
 def parse_headers(header_list: list[str] | None) -> dict[str, str]:
@@ -328,8 +337,12 @@ def test_command(
 
         return summary.exit_code
 
-    code = asyncio.run(_run())
-    raise typer.Exit(code=code)
+    try:
+        code = asyncio.run(_run())
+        raise typer.Exit(code=code)
+    except ReconError as err:
+        console.print(f"[bold red]Error:[/bold red] {err}")
+        raise typer.Exit(code=1)
 
 
 @app.command("analyze")
@@ -389,7 +402,11 @@ def analyze_command(
                 )
             )
 
-    asyncio.run(_run())
+    try:
+        asyncio.run(_run())
+    except ReconError as err:
+        console.print(f"[bold red]Error:[/bold red] {err}")
+        raise typer.Exit(code=1)
 
 
 @app.command("fix")
@@ -436,7 +453,11 @@ def fix_command(
         )
         raise typer.Exit(code=0 if fixed > 0 else 1)
 
-    asyncio.run(_run())
+    try:
+        asyncio.run(_run())
+    except ReconError as err:
+        console.print(f"[bold red]Error:[/bold red] {err}")
+        raise typer.Exit(code=1)
 
 
 @app.command("report")

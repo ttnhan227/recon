@@ -58,68 +58,74 @@ class BrowserTestRunner:
 
         try:
             async with async_playwright() as p:
-                browser = await p.chromium.launch(headless=True)
-                context = await browser.new_context(
-                    viewport={"width": 1280, "height": 800},
-                    ignore_https_errors=True,
-                )
-                page = await context.new_page()
-
-                # Attach listeners for console, page errors, and network errors
-                page.on("console", evidence_collector.handle_console)
-                page.on("pageerror", evidence_collector.handle_page_error)
-                page.on("requestfailed", evidence_collector.handle_request_failed)
-
-                for step in test.steps:
-                    step_res, failed = await self._execute_browser_step(
-                        page=page,
-                        step=step,
-                        evidence_collector=evidence_collector,
+                browser = None
+                try:
+                    browser = await p.chromium.launch(headless=True)
+                    context = await browser.new_context(
+                        viewport={"width": 1280, "height": 800},
+                        ignore_https_errors=True,
                     )
-                    step_results.append(step_res)
+                    page = await context.new_page()
 
-                    if failed:
-                        overall_status = step_res.status
-                        # Take screenshot upon failure
-                        screenshot = await evidence_collector.capture_screenshot(
-                            page, step.name, suffix="fail"
-                        )
-                        cat = self._determine_failure_category(
-                            step_res, evidence_collector.console_logs
-                        )
-                        failure_evidence = FailureEvidence(
-                            failure_category=cat,
-                            message=step_res.error_message or "Browser step failed",
-                            failed_step=step.name,
-                            console_errors=evidence_collector.console_logs,
-                            network_errors=evidence_collector.network_errors,
-                            screenshots=[screenshot] if screenshot else [],
-                            system_logs=[f"Failed at step: {step.name}"],
-                        )
-                        break
+                    # Attach listeners for console, page errors, and network errors
+                    page.on("console", evidence_collector.handle_console)
+                    page.on("pageerror", evidence_collector.handle_page_error)
+                    page.on("requestfailed", evidence_collector.handle_request_failed)
 
-                # If test passed all steps, check for critical console errors (e.g. Uncaught TypeError)
-                if overall_status == TestStatus.PASSED:
-                    uncaught_errors = [
-                        c for c in evidence_collector.console_logs if c.level == "error"
-                    ]
-                    if uncaught_errors:
-                        # Mark as failed due to unhandled console errors
-                        overall_status = TestStatus.FAILED
-                        screenshot = await evidence_collector.capture_screenshot(
-                            page, "console_errors", suffix="error"
+                    for step in test.steps:
+                        step_res, failed = await self._execute_browser_step(
+                            page=page,
+                            step=step,
+                            evidence_collector=evidence_collector,
                         )
-                        err_texts = "; ".join(e.text for e in uncaught_errors[:3])
-                        failure_evidence = FailureEvidence(
-                            failure_category=FailureCategory.APPLICATION_ERROR,
-                            message=f"Detected unhandled JavaScript console errors: {err_texts}",
-                            failed_step="Console Check",
-                            console_errors=evidence_collector.console_logs,
-                            network_errors=evidence_collector.network_errors,
-                            screenshots=[screenshot] if screenshot else [],
-                        )
+                        step_results.append(step_res)
 
-                await browser.close()
+                        if failed:
+                            overall_status = step_res.status
+                            # Take screenshot upon failure
+                            screenshot = await evidence_collector.capture_screenshot(
+                                page, step.name, suffix="fail"
+                            )
+                            cat = self._determine_failure_category(
+                                step_res, evidence_collector.console_logs
+                            )
+                            failure_evidence = FailureEvidence(
+                                failure_category=cat,
+                                message=step_res.error_message or "Browser step failed",
+                                failed_step=step.name,
+                                console_errors=evidence_collector.console_logs,
+                                network_errors=evidence_collector.network_errors,
+                                screenshots=[screenshot] if screenshot else [],
+                                system_logs=[f"Failed at step: {step.name}"],
+                            )
+                            break
+
+                    # If test passed all steps, check for critical console errors (e.g. Uncaught TypeError)
+                    if overall_status == TestStatus.PASSED:
+                        uncaught_errors = [
+                            c for c in evidence_collector.console_logs if c.level == "error"
+                        ]
+                        if uncaught_errors:
+                            # Mark as failed due to unhandled console errors
+                            overall_status = TestStatus.FAILED
+                            screenshot = await evidence_collector.capture_screenshot(
+                                page, "console_errors", suffix="error"
+                            )
+                            err_texts = "; ".join(e.text for e in uncaught_errors[:3])
+                            failure_evidence = FailureEvidence(
+                                failure_category=FailureCategory.APPLICATION_ERROR,
+                                message=f"Detected unhandled JavaScript console errors: {err_texts}",
+                                failed_step="Console Check",
+                                console_errors=evidence_collector.console_logs,
+                                network_errors=evidence_collector.network_errors,
+                                screenshots=[screenshot] if screenshot else [],
+                            )
+                finally:
+                    if browser:
+                        try:
+                            await browser.close()
+                        except Exception:
+                            pass
 
         except Exception as e:
             overall_status = TestStatus.ERROR
@@ -145,6 +151,99 @@ class BrowserTestRunner:
             failure_evidence=failure_evidence,
         )
 
+    async def _evaluate_browser_assertions(
+        self, page: Any, assertions: list[Any], status_code: int | None, duration_ms: float
+    ) -> list[AssertionResult]:
+        """Evaluates StepAssertions for browser pages and interactions."""
+        results = []
+        for a in assertions:
+            atype = a.assertion_type
+            if atype == AssertionType.STATUS_CODE:
+                passed = status_code in (
+                    a.expected if isinstance(a.expected, list) else [a.expected]
+                )
+                results.append(
+                    AssertionResult(
+                        assertion_type=atype,
+                        passed=passed,
+                        target="status_code",
+                        expected=a.expected,
+                        actual=status_code,
+                        message=f"Page returned status {status_code}" if not passed else None,
+                    )
+                )
+            elif atype == AssertionType.RESPONSE_TIME_MS:
+                passed = duration_ms <= float(a.expected)
+                results.append(
+                    AssertionResult(
+                        assertion_type=atype,
+                        passed=passed,
+                        target="duration_ms",
+                        expected=a.expected,
+                        actual=round(duration_ms, 2),
+                        message=(
+                            f"Browser action duration {duration_ms:.1f}ms exceeded limit {a.expected}ms"
+                            if not passed
+                            else None
+                        ),
+                    )
+                )
+            elif atype == AssertionType.TEXT_VISIBLE:
+                expected_text = str(a.expected)
+                try:
+                    content = await page.content()
+                    passed = expected_text in content
+                except Exception:
+                    passed = False
+                results.append(
+                    AssertionResult(
+                        assertion_type=atype,
+                        passed=passed,
+                        target="text",
+                        expected=expected_text,
+                        actual=f"Visible: {passed}",
+                        message=f"Expected text '{expected_text}' not visible"
+                        if not passed
+                        else None,
+                    )
+                )
+            elif atype == AssertionType.ELEMENT_EXISTS:
+                sel = a.target or str(a.expected)
+                try:
+                    handle = await page.query_selector(sel)
+                    passed = handle is not None
+                except Exception:
+                    passed = False
+                results.append(
+                    AssertionResult(
+                        assertion_type=atype,
+                        passed=passed,
+                        target=sel,
+                        expected="Element exists in DOM",
+                        actual="Found" if passed else "Not found",
+                        message=f"Element '{sel}' not found in DOM" if not passed else None,
+                    )
+                )
+            elif atype == AssertionType.URL_MATCHES:
+                curr_url = page.url
+                expected_pattern = str(a.expected)
+                passed = expected_pattern in curr_url
+                results.append(
+                    AssertionResult(
+                        assertion_type=atype,
+                        passed=passed,
+                        target="url",
+                        expected=expected_pattern,
+                        actual=curr_url,
+                        message=(
+                            f"URL '{curr_url}' does not match expected '{expected_pattern}'"
+                            if not passed
+                            else None
+                        ),
+                    )
+                )
+        return results
+
     async def _execute_browser_step(
         self,
         page: Any,
@@ -155,6 +254,7 @@ class BrowserTestRunner:
         stype = step.step_type
         timeout_ms = int(step.timeout_seconds * 1000)
         initial_page_errors = len(evidence_collector.page_errors)
+        status_code: int | None = None
 
         try:
             if stype == "browser_navigate":
@@ -164,54 +264,12 @@ class BrowserTestRunner:
                     target_url, timeout=timeout_ms, wait_until="domcontentloaded"
                 )
                 status_code = resp.status if resp else 200
-                duration_ms = (time.perf_counter() - step_start) * 1000.0
-
-                # Evaluate step assertions
-                assertion_results = []
-                for a in step.assertions:
-                    if a.assertion_type == AssertionType.STATUS_CODE:
-                        passed = status_code in (
-                            a.expected if isinstance(a.expected, list) else [a.expected]
-                        )
-                        assertion_results.append(
-                            AssertionResult(
-                                assertion_type=AssertionType.STATUS_CODE,
-                                passed=passed,
-                                target="status_code",
-                                expected=a.expected,
-                                actual=status_code,
-                                message=f"Page returned status {status_code}"
-                                if not passed
-                                else None,
-                            )
-                        )
-
-                failed = any(not ar.passed for ar in assertion_results)
-                return (
-                    StepResult(
-                        step_name=step.name,
-                        status=TestStatus.FAILED if failed else TestStatus.PASSED,
-                        duration_ms=round(duration_ms, 2),
-                        assertion_results=assertion_results,
-                        error_message="Page navigation status mismatch" if failed else None,
-                    ),
-                    failed,
-                )
 
             elif stype == "browser_fill":
                 selector = step.selector
                 value = step.value or ""
                 await page.wait_for_selector(selector, timeout=timeout_ms, state="visible")
                 await page.fill(selector, value)
-                duration_ms = (time.perf_counter() - step_start) * 1000.0
-                return (
-                    StepResult(
-                        step_name=step.name,
-                        status=TestStatus.PASSED,
-                        duration_ms=round(duration_ms, 2),
-                    ),
-                    False,
-                )
 
             elif stype == "browser_click":
                 selector = step.selector
@@ -219,10 +277,10 @@ class BrowserTestRunner:
                 await page.click(selector)
                 # Brief pause for DOM reactions
                 await asyncio.sleep(0.3)
-                duration_ms = (time.perf_counter() - step_start) * 1000.0
 
                 new_errors = evidence_collector.page_errors[initial_page_errors:]
                 if new_errors:
+                    duration_ms = (time.perf_counter() - step_start) * 1000.0
                     return (
                         StepResult(
                             step_name=step.name,
@@ -233,38 +291,33 @@ class BrowserTestRunner:
                         True,
                     )
 
-                return (
-                    StepResult(
-                        step_name=step.name,
-                        status=TestStatus.PASSED,
-                        duration_ms=round(duration_ms, 2),
-                    ),
-                    False,
-                )
-
             elif stype == "browser_screenshot":
                 await evidence_collector.capture_screenshot(page, step.name)
-                duration_ms = (time.perf_counter() - step_start) * 1000.0
-                return (
-                    StepResult(
-                        step_name=step.name,
-                        status=TestStatus.PASSED,
-                        duration_ms=round(duration_ms, 2),
-                    ),
-                    False,
-                )
 
-            else:
-                # Unknown step type fallback
-                duration_ms = (time.perf_counter() - step_start) * 1000.0
-                return (
-                    StepResult(
-                        step_name=step.name,
-                        status=TestStatus.PASSED,
-                        duration_ms=round(duration_ms, 2),
-                    ),
-                    False,
-                )
+            duration_ms = (time.perf_counter() - step_start) * 1000.0
+
+            # Evaluate step assertions across all step types
+            assertion_results = await self._evaluate_browser_assertions(
+                page=page,
+                assertions=step.assertions,
+                status_code=status_code,
+                duration_ms=duration_ms,
+            )
+
+            failed = any(not ar.passed for ar in assertion_results)
+            failed_msgs = [ar.message for ar in assertion_results if not ar.passed and ar.message]
+            err_msg = "; ".join(failed_msgs) if failed_msgs else None
+
+            return (
+                StepResult(
+                    step_name=step.name,
+                    status=TestStatus.FAILED if failed else TestStatus.PASSED,
+                    duration_ms=round(duration_ms, 2),
+                    assertion_results=assertion_results,
+                    error_message=err_msg,
+                ),
+                failed,
+            )
 
         except Exception as e:
             duration_ms = (time.perf_counter() - step_start) * 1000.0

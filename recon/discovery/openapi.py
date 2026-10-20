@@ -76,10 +76,15 @@ class OpenAPIParser:
         except Exception as e:
             raise DiscoveryError(f"Error reading OpenAPI file {file_path}: {e}") from e
 
-    def resolve_ref(self, ref: str) -> dict[str, Any]:
-        """Resolves a local JSON schema reference like #/components/schemas/User or #/definitions/User."""
+    def resolve_ref(self, ref: str, visited: set[str] | None = None) -> dict[str, Any]:
+        """Resolves a local JSON schema reference like #/components/schemas/User with cycle detection."""
         if not ref.startswith("#/"):
             return {}
+
+        seen = set(visited) if visited is not None else set()
+        if ref in seen:
+            return {"type": "object", "$ref": ref, "description": f"Circular reference to {ref}"}
+        seen.add(ref)
 
         parts = ref.lstrip("#/").split("/")
         curr: Any = self.spec
@@ -92,42 +97,49 @@ class OpenAPIParser:
         if isinstance(curr, dict):
             # Recursively resolve nested refs if any
             if "$ref" in curr:
-                return self.resolve_ref(curr["$ref"])
+                return self.resolve_ref(curr["$ref"], visited=seen)
             # Resolve properties
             resolved = dict(curr)
             if "properties" in resolved and isinstance(resolved["properties"], dict):
                 resolved_props = {}
                 for p_name, p_val in resolved["properties"].items():
                     if isinstance(p_val, dict) and "$ref" in p_val:
-                        resolved_props[p_name] = self.resolve_ref(p_val["$ref"])
+                        resolved_props[p_name] = self.resolve_ref(p_val["$ref"], visited=seen)
                     else:
                         resolved_props[p_name] = p_val
                 resolved["properties"] = resolved_props
             return resolved
         return {}
 
-    def _resolve_schema(self, schema: dict[str, Any] | None) -> dict[str, Any] | None:
-        """Deeply resolves $ref schemas inside a schema dictionary."""
+    def _resolve_schema(
+        self, schema: dict[str, Any] | None, visited: set[str] | None = None
+    ) -> dict[str, Any] | None:
+        """Deeply resolves $ref schemas inside a schema dictionary with cycle detection."""
         if not schema or not isinstance(schema, dict):
             return schema
 
+        seen = set(visited) if visited is not None else set()
+
         if "$ref" in schema:
-            return self.resolve_ref(schema["$ref"])
+            ref = schema["$ref"]
+            if ref in seen:
+                return {"type": "object", "$ref": ref}
+            return self.resolve_ref(ref, visited=seen)
 
         resolved = dict(schema)
         if "properties" in resolved and isinstance(resolved["properties"], dict):
             resolved["properties"] = {
-                k: self._resolve_schema(v) for k, v in resolved["properties"].items()
+                k: self._resolve_schema(v, visited=seen) for k, v in resolved["properties"].items()
             }
 
         if "items" in resolved and isinstance(resolved["items"], dict):
-            resolved["items"] = self._resolve_schema(resolved["items"])
+            resolved["items"] = self._resolve_schema(resolved["items"], visited=seen)
 
         if "allOf" in resolved and isinstance(resolved["allOf"], list):
             merged_props = {}
             required_fields = list(resolved.get("required", []))
             for sub in resolved["allOf"]:
-                sub_res = self._resolve_schema(sub)
+                sub_res = self._resolve_schema(sub, visited=seen)
                 if isinstance(sub_res, dict):
                     merged_props.update(sub_res.get("properties", {}))
                     required_fields.extend(sub_res.get("required", []))
@@ -140,6 +152,8 @@ class OpenAPIParser:
 
     def parse(self, base_url: str = "") -> DiscoveredApplication:
         """Extracts endpoints, parameters, schemas, and metadata from the specification."""
+        from urllib.parse import urljoin
+
         info = self.spec.get("info", {})
         title = info.get("title", "Target API")
         version = info.get("version", "1.0.0")
@@ -149,7 +163,13 @@ class OpenAPIParser:
         if not target_url:
             servers = self.spec.get("servers", [])
             if servers and isinstance(servers, list) and len(servers) > 0:
-                target_url = servers[0].get("url", "")
+                raw_srv = servers[0].get("url", "")
+                if raw_srv.startswith("http://") or raw_srv.startswith("https://"):
+                    target_url = raw_srv
+                elif self.source_url.startswith("http"):
+                    target_url = urljoin(self.source_url, raw_srv)
+                else:
+                    target_url = "http://localhost:8000"
             elif "host" in self.spec:  # Swagger 2.0
                 schemes = self.spec.get("schemes", ["http"])
                 scheme = schemes[0] if schemes else "http"

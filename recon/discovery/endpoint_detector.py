@@ -4,6 +4,7 @@ from urllib.parse import urljoin
 
 import httpx
 
+from recon.common.exceptions import DiscoveryError, TargetUnreachableError
 from recon.common.logging import logger
 from recon.common.security import validate_target_url
 from recon.discovery.models import DiscoveredApplication
@@ -56,7 +57,20 @@ async def discover_application(
 
     # 2. Probe for OpenAPI
     base = target_url.rstrip("/")
-    async with httpx.AsyncClient(timeout=5.0, follow_redirects=True) as client:
+    async with httpx.AsyncClient(timeout=3.0, follow_redirects=True) as client:
+        # Pre-flight reachability check: fast probe to determine if target host is listening
+        try:
+            await client.get(base)
+        except (httpx.ConnectError, httpx.ConnectTimeout) as conn_err:
+            logger.error(f"Cannot connect to target {target_url}: {conn_err}")
+            raise TargetUnreachableError(
+                f"Cannot connect to target '{target_url}'. Connection was refused or timed out. "
+                "Ensure the target server is running and accessible."
+            ) from conn_err
+        except Exception:
+            # 4xx/5xx or SSL warnings mean the host at least responded or TCP connected
+            pass
+
         for probe in OPENAPI_PROBE_PATHS:
             probe_url = urljoin(base + "/", probe.lstrip("/"))
             try:
@@ -76,7 +90,14 @@ async def discover_application(
             except Exception:
                 continue
 
-    # 3. Fallback to Web Crawling
-    logger.info(f"No OpenAPI spec found at {target_url}. Starting web application crawler...")
-    crawler = WebCrawler(base)
-    return await crawler.crawl()
+    # 3. Fallback to Web Crawling if enabled
+    if enable_browser:
+        logger.info(f"No OpenAPI spec found at {target_url}. Starting web application crawler...")
+        crawler = WebCrawler(base)
+        return await crawler.crawl()
+
+    # 4. If neither OpenAPI nor browser crawling requested, raise clean informative error
+    raise DiscoveryError(
+        f"No OpenAPI specification detected at '{target_url}'. "
+        "Provide an explicit specification via `--spec <path/url>` or enable web crawling via `--browser`."
+    )
