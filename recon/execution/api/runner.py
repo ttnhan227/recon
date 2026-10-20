@@ -286,8 +286,10 @@ class APITestRunner:
             return FailureCategory.AUTHENTICATION_FAILURE
         elif status == 403:
             return FailureCategory.AUTHORIZATION_FAILURE
-        elif status == 422 or status == 400:
+        elif status in (400, 422):
             return FailureCategory.VALIDATION_FAILURE
+        elif status in (404, 405, 502, 503, 504):
+            return FailureCategory.HTTP_ERROR
         elif status >= 500:
             return FailureCategory.HTTP_ERROR
 

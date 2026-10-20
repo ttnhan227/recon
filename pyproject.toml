@@ -62,6 +62,7 @@ dev = [
 
 [project.scripts]
 recon = "recon.apps.cli.main:app"
+recon-qa = "recon.apps.cli.main:app"
 qa-agent = "recon.apps.cli.main:app"
 
 [tool.setuptools.packages.find]

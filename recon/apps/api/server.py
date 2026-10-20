@@ -74,7 +74,5 @@ async def get_run_report(run_id: str):
         if matches:
             report_file = matches[0]
         else:
-            raise HTTPException(
-                status_code=404, detail=f"HTML report for run {run_id} not found"
-            )
+            raise HTTPException(status_code=404, detail=f"HTML report for run {run_id} not found")
     return HTMLResponse(content=report_file.read_text(encoding="utf-8"))

@@ -37,6 +37,14 @@ app.command("providers", help="Shortcut to list all supported AI providers and a
 )
 
 
+def normalize_cli_target(target: str) -> str:
+    """Ensures target URLs entered by users without schemes default gracefully to http://."""
+    cleaned = target.strip()
+    if cleaned and not cleaned.startswith("http://") and not cleaned.startswith("https://"):
+        return f"http://{cleaned}"
+    return cleaned
+
+
 @app.command("scan")
 def scan_command(
     target: Annotated[str, typer.Argument(help="Target URL (e.g. http://localhost:8000)")],
@@ -48,6 +56,7 @@ def scan_command(
     ] = False,
 ):
     """Inspects target application, discovering routes, API endpoints, and interactive elements."""
+    target = normalize_cli_target(target)
     console.print(f"[bold cyan]Scanning target:[/bold cyan] {target}")
 
     async def _run():
@@ -117,6 +126,7 @@ def generate_command(
     ] = False,
 ):
     """Plans test suite including happy-path, boundary fuzzing, negative validation, and security probes."""
+    target = normalize_cli_target(target)
     console.print(f"[bold cyan]Planning test suite for:[/bold cyan] {target}")
 
     async def _run():
@@ -208,6 +218,7 @@ def test_command(
     ] = None,
 ):
     """Discover a target, generate tests, execute them, classify failures, and write reports."""
+    target = normalize_cli_target(target)
     project_slug = get_project_slug(target)
     actual_report_dir = (report_dir or (settings.reports_dir / project_slug)).resolve()
     parsed_hdrs = parse_headers(header)

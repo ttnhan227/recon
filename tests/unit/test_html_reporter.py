@@ -230,7 +230,11 @@ def test_html_reporter_renders_console_and_stack_trace_evidence(tmp_path: Path):
                 failure_category=FailureCategory.BROWSER_ERROR,
                 message="Uncaught TypeError in login event handler",
                 console_errors=[
-                    ConsoleLog(level="error", text="Uncaught TypeError: Cannot read token of undefined", location="http://localhost:8000/main.js")
+                    ConsoleLog(
+                        level="error",
+                        text="Uncaught TypeError: Cannot read token of undefined",
+                        location="http://localhost:8000/main.js",
+                    )
                 ],
                 stack_trace="Traceback:\n  at HTMLButtonElement.onclick (index.html:105)",
             ),
@@ -244,4 +248,3 @@ def test_html_reporter_renders_console_and_stack_trace_evidence(tmp_path: Path):
     assert "Uncaught TypeError: Cannot read token of undefined" in content
     assert "Diagnostic Stack Trace" in content
     assert "Copy Stack Trace" in content
-

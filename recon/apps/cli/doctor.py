@@ -39,9 +39,19 @@ async def run_doctor(target_url: str | None = None) -> bool:
             browser = await p.chromium.launch(headless=True)
             await browser.close()
         table.add_row("Playwright & Chromium", "[green]OK[/green]", "Headless Chromium ready")
+    except (ImportError, ModuleNotFoundError):
+        table.add_row(
+            "Playwright & Chromium",
+            "[yellow]OPTIONAL[/yellow]",
+            "Not installed (API testing works offline). Install via: pip install 'recon-qa[browser]'",
+        )
     except Exception as e:
         all_healthy = False
-        table.add_row("Playwright & Chromium", "[red]FAIL[/red]", f"Browser check failed: {e}")
+        table.add_row(
+            "Playwright & Chromium",
+            "[red]FAIL[/red]",
+            f"Installed but Chromium launch failed: {e}. Run: playwright install chromium",
+        )
 
     # 3. Docker CLI
     docker_bin = shutil.which("docker")

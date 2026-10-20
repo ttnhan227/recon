@@ -176,9 +176,9 @@ async def run_verification():
                 # Check horizontal scroll / overflow
                 scroll_width = await page.evaluate("document.documentElement.scrollWidth")
                 client_width = await page.evaluate("document.documentElement.clientWidth")
-                assert (
-                    scroll_width <= client_width + 1
-                ), f"Horizontal overflow on {name}: {scroll_width} > {client_width}"
+                assert scroll_width <= client_width + 1, (
+                    f"Horizontal overflow on {name}: {scroll_width} > {client_width}"
+                )
 
                 # Capture screenshot
                 sc_dest = evidence_dir / f"report_{name}.png"
@@ -195,9 +195,9 @@ async def run_verification():
             # 1. Skip link test
             await page.keyboard.press("Tab")
             focused_id = await page.evaluate("document.activeElement.className")
-            assert (
-                "skip-link" in focused_id
-            ), f"Expected skip link to receive focus, got {focused_id}"
+            assert "skip-link" in focused_id, (
+                f"Expected skip link to receive focus, got {focused_id}"
+            )
 
             # 2. Theme toggle test
             is_dark_before = await page.evaluate(
@@ -253,7 +253,9 @@ async def run_verification():
                 "document.querySelector('#testList .test-id').textContent"
             )
             # TEST-UI-003 took 850ms, so it should be first when sorted by duration descending
-            assert first_test_id == "TEST-UI-003", f"Expected TEST-UI-003 first, got {first_test_id}"
+            assert first_test_id == "TEST-UI-003", (
+                f"Expected TEST-UI-003 first, got {first_test_id}"
+            )
 
             # 8. Copy button test
             await page.click("#btnExpandAll")
@@ -268,9 +270,9 @@ async def run_verification():
             await page.click("h1")  # defocus
             await page.keyboard.press("/")
             focused_search = await page.evaluate("document.activeElement.id")
-            assert (
-                focused_search == "searchInput"
-            ), f"Expected searchInput focused on '/', got {focused_search}"
+            assert focused_search == "searchInput", (
+                f"Expected searchInput focused on '/', got {focused_search}"
+            )
 
             print("Report interactive actions and shortcuts verified successfully!")
             await page.close()
@@ -283,9 +285,7 @@ async def run_verification():
                 # Check horizontal overflow
                 scroll_width = await page.evaluate("document.documentElement.scrollWidth")
                 client_width = await page.evaluate("document.documentElement.clientWidth")
-                assert (
-                    scroll_width <= client_width + 1
-                ), f"Horizontal overflow on Demo App {name}"
+                assert scroll_width <= client_width + 1, f"Horizontal overflow on Demo App {name}"
 
                 sc_dest = evidence_dir / f"demo_index_{name}.png"
                 await page.screenshot(path=str(sc_dest), full_page=True)
@@ -340,7 +340,9 @@ async def run_verification():
             filtered_orders = await page.evaluate(
                 "Array.from(document.querySelectorAll('#ordersBody tr')).filter(r => r.style.display !== 'none').length"
             )
-            assert filtered_orders == 1, f"Expected 1 matching order for '5521', got {filtered_orders}"
+            assert filtered_orders == 1, (
+                f"Expected 1 matching order for '5521', got {filtered_orders}"
+            )
             status_text = await page.text_content("#orderCountStatus")
             assert "Showing 1 of 2 orders" in status_text
 

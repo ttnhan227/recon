@@ -433,3 +433,86 @@ def test_failure_classifier_connection_refused_network_error():
 
     classified = DeterministicFailureClassifier.classify(result)
     assert classified == FailureCategory.NETWORK_ERROR
+
+
+# -----------------------------------------------------------------------------
+# 8. Kebab-Case Path Parameter State Substitution
+# -----------------------------------------------------------------------------
+def test_state_pool_kebab_case_substitution():
+    """Verify that StatePool substitutes kebab-case path parameters like {order-id} and {item-sku}."""
+    from recon.orchestration.state_pool import StatePool
+
+    pool = StatePool.get_instance()
+    pool.reset()
+
+    pool.store_entity("order-id", "ord-kebab-999")
+    pool.store_entity("item-sku", "SKU-XYZ-456")
+
+    url = "http://localhost:8000/api/orders/{order-id}/items/{item-sku}"
+    substituted = pool.substitute_url(url)
+    assert substituted == "http://localhost:8000/api/orders/ord-kebab-999/items/SKU-XYZ-456"
+
+
+# -----------------------------------------------------------------------------
+# 9. 404 / 405 Classification as HTTP_ERROR
+# -----------------------------------------------------------------------------
+def test_classify_404_and_405_as_http_error():
+    """Verify that HTTP 404 Not Found and 405 Method Not Allowed are classified as HTTP_ERROR."""
+    for code in (404, 405):
+        trace = HTTPTrace(
+            request_method="GET",
+            request_url=f"http://localhost:8000/api/missing-{code}",
+            response_status=code,
+            response_body={"detail": f"Status {code}"},
+        )
+        result = TestResult(
+            test_id=f"API-{code}",
+            test_name=f"Endpoint Check {code}",
+            category=TestCategory.HAPPY_PATH,
+            test_type=TestType.API,
+            status=TestStatus.FAILED,
+            failure_evidence=FailureEvidence(
+                failure_category=FailureCategory.UNKNOWN,
+                message=f"HTTP {code} returned",
+                http_traces=[trace],
+            ),
+        )
+        classified = DeterministicFailureClassifier.classify(result)
+        assert classified == FailureCategory.HTTP_ERROR
+
+
+# -----------------------------------------------------------------------------
+# 10. CLI Target Normalization
+# -----------------------------------------------------------------------------
+def test_normalize_cli_target():
+    """Verify normalize_cli_target prepends http:// when scheme is omitted."""
+    from recon.apps.cli.main import normalize_cli_target
+
+    assert normalize_cli_target("localhost:8000") == "http://localhost:8000"
+    assert normalize_cli_target("127.0.0.1:3000") == "http://127.0.0.1:3000"
+    assert normalize_cli_target("http://localhost:8000") == "http://localhost:8000"
+    assert normalize_cli_target("https://api.example.com") == "https://api.example.com"
+    assert normalize_cli_target("  localhost:8080/api  ") == "http://localhost:8080/api"
+
+
+# -----------------------------------------------------------------------------
+# 11. Doctor Check Playwright Optional Extra Handling
+# -----------------------------------------------------------------------------
+@pytest.mark.asyncio
+async def test_doctor_playwright_optional_handling(monkeypatch):
+    """Verify recon doctor treats missing Playwright as optional when testing API environments."""
+    import builtins
+
+    from recon.apps.cli.doctor import run_doctor
+
+    real_import = builtins.__import__
+
+    def mock_import(name, *args, **kwargs):
+        if "playwright" in name:
+            raise ImportError("No module named 'playwright'")
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", mock_import)
+
+    healthy = await run_doctor()
+    assert healthy is True

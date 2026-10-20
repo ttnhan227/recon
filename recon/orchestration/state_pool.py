@@ -148,7 +148,7 @@ class StatePool:
     def substitute_url(self, url: str) -> str:
         """Substitutes path params and placeholder GUIDs with real harvested entities."""
         # 1. Substitute {paramName}
-        for param_match in re.findall(r"\{([a-zA-Z0-9_]+)\}", url):
+        for param_match in re.findall(r"\{([a-zA-Z0-9_\-]+)\}", url):
             latest_val = self.get_latest(param_match)
             if latest_val:
                 url = url.replace(f"{{{param_match}}}", latest_val)

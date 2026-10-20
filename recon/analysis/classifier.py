@@ -64,7 +64,7 @@ class DeterministicFailureClassifier:
             if status == 500:
                 return FailureCategory.APPLICATION_ERROR
 
-            if status in (502, 503, 504):
+            if status in (404, 405, 502, 503, 504):
                 return FailureCategory.HTTP_ERROR
 
             if status == 401:

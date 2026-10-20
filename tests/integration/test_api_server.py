@@ -23,7 +23,9 @@ async def test_api_server_get_run_report_success(tmp_path):
     run_dir = tmp_path / f"run-{run_id}"
     run_dir.mkdir(parents=True, exist_ok=True)
     report_file = run_dir / "report.html"
-    report_file.write_text("<!DOCTYPE html><html><body>Report Content</body></html>", encoding="utf-8")
+    report_file.write_text(
+        "<!DOCTYPE html><html><body>Report Content</body></html>", encoding="utf-8"
+    )
 
     orig_reports_dir = settings.reports_dir
     settings.reports_dir = tmp_path
