@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
 
 from recon.common.config import settings
@@ -62,3 +63,18 @@ async def get_run_details(run_id: str):
         return summary
     finally:
         await db.close()
+
+
+@api_app.get("/api/v1/runs/{run_id}/report", response_class=HTMLResponse)
+async def get_run_report(run_id: str):
+    """Retrieves the standalone HTML test report for a specific run_id."""
+    report_file = settings.reports_dir / f"run-{run_id}" / "report.html"
+    if not report_file.exists():
+        matches = list(settings.reports_dir.glob(f"**/run-{run_id}/report.html"))
+        if matches:
+            report_file = matches[0]
+        else:
+            raise HTTPException(
+                status_code=404, detail=f"HTML report for run {run_id} not found"
+            )
+    return HTMLResponse(content=report_file.read_text(encoding="utf-8"))
