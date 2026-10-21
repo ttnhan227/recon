@@ -112,10 +112,10 @@ def list_providers():
 
     table = Table(title="Recon AI Providers & Configuration", title_style="bold cyan")
     table.add_column("Active", justify="center", style="bold green", width=10)
-    table.add_column("Provider", style="bold white", width=14)
+    table.add_column("Provider", style="bold white", width=12)
     table.add_column("Status", justify="center", width=16)
-    table.add_column("Configured Key", style="yellow", width=18)
-    table.add_column("Default Model", style="cyan")
+    table.add_column("Configured Key", style="yellow", overflow="fold")
+    table.add_column("Default Model", style="cyan", overflow="fold")
 
     all_providers = ["gemini", "mistral", "openai", "anthropic", "ollama", "custom", "mock"]
 

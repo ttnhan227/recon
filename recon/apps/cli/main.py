@@ -69,10 +69,10 @@ def scan_command(
             title=f"Discovered Endpoints ({len(discovered.endpoints)})", title_style="bold blue"
         )
         table.add_column("Method", style="bold green", width=8)
-        table.add_column("Path", style="cyan")
+        table.add_column("Path", style="cyan", overflow="fold")
         table.add_column("Parameters", style="magenta")
         table.add_column("Request Body", style="yellow")
-        table.add_column("Summary", style="white")
+        table.add_column("Summary", style="white", overflow="fold")
 
         for ep in discovered.endpoints:
             params_str = ", ".join(p.name for p in ep.parameters) or "-"
@@ -85,8 +85,8 @@ def scan_command(
             p_table = Table(
                 title=f"Discovered Web Pages ({len(discovered.pages)})", title_style="bold green"
             )
-            p_table.add_column("URL", style="cyan")
-            p_table.add_column("Title", style="white")
+            p_table.add_column("URL", style="cyan", overflow="fold")
+            p_table.add_column("Title", style="white", overflow="fold")
             p_table.add_column("Forms", justify="center")
             p_table.add_column("Buttons", justify="center")
             p_table.add_column("Links", justify="center")
@@ -402,7 +402,7 @@ def analyze_command(
                 Panel(
                     f"[bold red]Test:[/bold red] {f.test_name} ({f.test_id})\n"
                     f"[bold white]Observed Facts:[/bold white]\n"
-                    + "\n".join(f"  • {fact}" for fact in analysis.observed_facts)
+                    + "\n".join(f"  * {fact}" for fact in analysis.observed_facts)
                     + "\n\n"
                     "[bold yellow]Root Cause Hypothesis:[/bold yellow] "
                     + (analysis.hypotheses[0].hypothesis if analysis.hypotheses else "N/A")

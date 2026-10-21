@@ -17,7 +17,7 @@ async def run_doctor(target_url: str | None = None) -> bool:
     table = Table(title="Recon QA - System Diagnostics", title_style="bold cyan")
     table.add_column("Component", style="cyan", no_wrap=True)
     table.add_column("Status", justify="center")
-    table.add_column("Details", style="magenta")
+    table.add_column("Details", style="magenta", overflow="fold")
 
     all_healthy = True
 
