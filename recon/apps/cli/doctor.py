@@ -106,10 +106,18 @@ async def run_doctor(target_url: str | None = None) -> bool:
             status_str,
             f"Key present: {has_key} (Model: {settings.anthropic_model})",
         )
-    elif provider_name in ("ollama", "custom", "compatible"):
-        base_url = settings.llm_base_url or "http://localhost:11434/v1"
+    elif provider_name in ("ollama", "local"):
+        base_url = settings.llm_base_url or "http://127.0.0.1:11434/v1"
+        active_model = settings.custom_model if (settings.custom_model and settings.custom_model != "default") else "qwen3-coder:30b"
         table.add_row(
-            "AI Provider (Compatible)",
+            "AI Provider (Ollama Local)",
+            "[green]READY[/green]",
+            f"Endpoint: {base_url} (Model: {active_model})",
+        )
+    elif provider_name in ("custom", "compatible", "vllm", "lmstudio"):
+        base_url = settings.llm_base_url or "http://127.0.0.1:1234/v1"
+        table.add_row(
+            f"AI Provider ({provider_name.title()})",
             "[green]CONFIGURED[/green]",
             f"Base URL: {base_url} (Model: {settings.custom_model})",
         )

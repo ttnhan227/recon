@@ -48,7 +48,7 @@ class SelfHealingEngine:
                     return [TestResult.model_validate(item) for item in data]
 
         if target_or_run_id == "latest":
-            # 1. Check centralized project reports
+            # 1. Check centralized project reports using repo_dir slug
             project_slug = get_project_slug(cwd=self.repo_dir)
             central_latest = settings.reports_dir / project_slug / "latest.json"
             if central_latest.exists():
@@ -57,7 +57,26 @@ class SelfHealingEngine:
                     data = data["results"]
                 return [TestResult.model_validate(item) for item in data]
 
-            # 2. Check local ./reports/latest.json
+            # 2. Check centralized project reports using current working dir
+            cwd_slug = get_project_slug(cwd=Path.cwd())
+            cwd_latest = settings.reports_dir / cwd_slug / "latest.json"
+            if cwd_latest.exists():
+                data = json.loads(cwd_latest.read_text(encoding="utf-8"))
+                if isinstance(data, dict) and "results" in data:
+                    data = data["results"]
+                return [TestResult.model_validate(item) for item in data]
+
+            # 3. Check most recent latest.json across all project directories in ~/.recon/reports
+            if settings.reports_dir.exists():
+                all_latest = list(settings.reports_dir.glob("*/latest.json"))
+                if all_latest:
+                    most_recent = max(all_latest, key=lambda p: p.stat().st_mtime)
+                    data = json.loads(most_recent.read_text(encoding="utf-8"))
+                    if isinstance(data, dict) and "results" in data:
+                        data = data["results"]
+                    return [TestResult.model_validate(item) for item in data]
+
+            # 4. Check local ./reports/latest.json
             local_latest = Path("./reports/latest.json")
             if local_latest.exists():
                 data = json.loads(local_latest.read_text(encoding="utf-8"))
@@ -182,9 +201,17 @@ class SelfHealingEngine:
 
             should_apply = auto_apply
             if not auto_apply:
-                should_apply = Confirm.ask(
-                    f"Apply this fix to [bold]{best_ctx.relative_path}[/bold]?", default=False
-                )
+                import sys
+
+                if not sys.stdin or not hasattr(sys.stdin, "isatty") or not sys.stdin.isatty():
+                    should_apply = False
+                    console.print(
+                        f"[dim]Non-interactive terminal detected. Skipping apply for {best_ctx.relative_path}. Use --apply to auto-apply.[/dim]\n"
+                    )
+                else:
+                    should_apply = Confirm.ask(
+                        f"Apply this fix to [bold]{best_ctx.relative_path}[/bold]?", default=False
+                    )
 
             if should_apply:
                 backup = self.applier.apply_patch(patch)

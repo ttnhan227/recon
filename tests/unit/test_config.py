@@ -25,3 +25,45 @@ def test_recon_home_and_settings():
     assert home.name == ".recon"
     assert settings.reports_dir == home / "reports"
     assert "recon.db" in settings.database_url
+
+
+def test_api_key_connection_verification_mock():
+    from recon.apps.cli.config_cli import test_api_key_connection
+    is_valid, msg = test_api_key_connection("mock", "dummy_key")
+    assert is_valid is True
+
+
+def test_api_key_connection_verification_failure():
+    from unittest.mock import patch
+
+    from recon.apps.cli.config_cli import test_api_key_connection
+
+    with patch("recon.llm.provider.OpenAIProvider.complete", side_effect=Exception("401 Unauthorized: Invalid API key")):
+        is_valid, msg = test_api_key_connection("openai", "sk-invalid-key")
+        assert is_valid is False
+        assert "401" in msg
+
+
+def test_set_model_command():
+    from unittest.mock import patch
+
+    from recon.apps.cli.config_cli import set_model_command
+
+    with patch("recon.apps.cli.config_cli.update_env_file") as mock_update:
+        set_model_command(model="gemini-4-argon", provider="gemini", local=True)
+        mock_update.assert_called_once_with({"RECON_GEMINI_MODEL": "gemini-4-argon"}, is_local=True)
+
+
+def test_api_key_connection_verification_deepseek():
+    from unittest.mock import AsyncMock, patch
+
+    from recon.apps.cli.config_cli import test_api_key_connection
+
+    with patch("recon.llm.provider.OpenAICompatibleProvider.complete", new_callable=AsyncMock) as mock_complete:
+        mock_complete.return_value = "ok"
+        is_valid, msg = test_api_key_connection("deepseek", "sk-test-deepseek")
+        assert is_valid is True
+        assert "verified successfully" in msg
+
+
+

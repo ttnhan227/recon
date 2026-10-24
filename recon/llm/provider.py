@@ -12,6 +12,36 @@ from recon.common.exceptions import LLMProviderError
 from recon.common.logging import logger
 
 
+def _format_http_error(provider: str, e: Exception) -> str:
+    import httpx
+
+    if isinstance(e, httpx.HTTPStatusError):
+        code = e.response.status_code
+        try:
+            err_json = e.response.json()
+            err_msg = (
+                err_json.get("error", {}).get("message")
+                or err_json.get("message")
+                or err_json.get("detail")
+            )
+            if err_msg:
+                return f"{provider} API returned HTTP {code}: {err_msg}"
+        except Exception:
+            pass
+        text = e.response.text.strip()
+        return (
+            f"{provider} API returned HTTP {code}: {text[:200]}"
+            if text
+            else f"{provider} API returned HTTP {code}"
+        )
+    elif isinstance(e, httpx.TimeoutException):
+        return f"{provider} request timed out after 30s. Check your network or API endpoint availability."
+    elif isinstance(e, httpx.RequestError):
+        msg = str(e).strip() or type(e).__name__
+        return f"{provider} network error: {msg}"
+    return f"{provider} request failed: {str(e).strip() or type(e).__name__}"
+
+
 class LLMProvider(abc.ABC):
     """Abstract interface for LLM completions."""
 
@@ -55,6 +85,52 @@ class MockProvider(LLMProvider):
             return self.mock_responses.pop(0)
 
         prompt_lower = prompt.lower()
+
+        # Check if this is a master agent tool planning request
+        if "autonomous master qa engineer" in (system_prompt or "").lower() or "select the best tool" in prompt_lower:
+            if "browser" in prompt_lower or "navigate" in prompt_lower or "click" in prompt_lower or "cart" in prompt_lower:
+                return json.dumps({
+                    "tool": "browser",
+                    "goal": "Accomplish user browser task",
+                })
+            elif "fix" in prompt_lower or "patch" in prompt_lower or "bug" in prompt_lower:
+                return json.dumps({
+                    "tool": "code_fix",
+                    "defect_description": "Fix defect identified in prompt",
+                })
+            elif "scan" in prompt_lower or "discover" in prompt_lower:
+                return json.dumps({
+                    "tool": "scan",
+                })
+            elif "api" in prompt_lower or "endpoint" in prompt_lower or "500" in prompt_lower:
+                return json.dumps({
+                    "tool": "api_probe",
+                    "endpoint": "/api/orders",
+                    "method": "POST",
+                })
+            return json.dumps({
+                "tool": "reply",
+                "message": "I processed your request successfully."
+            })
+
+        # Check if this is an autonomous browser agent request
+        if "autonomous qa browser agent" in (system_prompt or "").lower() or "what is the next action?" in prompt_lower:
+            if "step 1 of" in prompt_lower:
+                if "health" in prompt_lower or "sức khỏe" in prompt_lower:
+                    return json.dumps({
+                        "thought": "Found health section link ('Sức khỏe'). Navigating there.",
+                        "action": "click",
+                        "selector": "a[href*='suc-khoe']"
+                    })
+                return json.dumps({
+                    "thought": "Navigating to target element on page.",
+                    "action": "click",
+                    "selector": "a"
+                })
+            return json.dumps({
+                "thought": "Goal successfully accomplished.",
+                "action": "finish"
+            })
 
         # Check if this is a test generation request
         if (
@@ -198,9 +274,9 @@ class MockProvider(LLMProvider):
 class GeminiProvider(LLMProvider):
     """Google Gemini LLM provider using REST API with httpx."""
 
-    def __init__(self, api_key: str | None = None, model: str = "gemini-2.5-flash"):
-        self.api_key = api_key or settings.gemini_api_key
-        self.model = model
+    def __init__(self, api_key: str | None = None, model: str | None = None):
+        self.api_key = api_key if api_key is not None else settings.gemini_api_key
+        self.model = model if model is not None else settings.gemini_model
 
     async def complete(self, prompt: str, system_prompt: str | None = None) -> str:
         if not self.api_key:
@@ -242,15 +318,15 @@ class GeminiProvider(LLMProvider):
                 parts = candidates[0].get("content", {}).get("parts", [])
                 return parts[0].get("text", "") if parts else ""
             except Exception as e:
-                raise LLMProviderError(f"Gemini API request failed: {e}") from e
+                raise LLMProviderError(_format_http_error("Gemini", e)) from e
 
 
 class OpenAIProvider(LLMProvider):
     """OpenAI provider using REST API with httpx."""
 
-    def __init__(self, api_key: str | None = None, model: str = "gpt-4o-mini"):
-        self.api_key = api_key or settings.openai_api_key
-        self.model = model
+    def __init__(self, api_key: str | None = None, model: str | None = None):
+        self.api_key = api_key if api_key is not None else settings.openai_api_key
+        self.model = model if model is not None else settings.openai_model
 
     async def complete(self, prompt: str, system_prompt: str | None = None) -> str:
         if not self.api_key:
@@ -284,15 +360,15 @@ class OpenAIProvider(LLMProvider):
                 data = resp.json()
                 return data["choices"][0]["message"]["content"] or ""
             except Exception as e:
-                raise LLMProviderError(f"OpenAI API request failed: {e}") from e
+                raise LLMProviderError(_format_http_error("OpenAI", e)) from e
 
 
 class MistralProvider(LLMProvider):
     """Mistral AI provider using REST API with httpx."""
 
     def __init__(self, api_key: str | None = None, model: str | None = None):
-        self.api_key = api_key or settings.mistral_api_key
-        self.model = model or settings.mistral_model
+        self.api_key = api_key if api_key is not None else settings.mistral_api_key
+        self.model = model if model is not None else settings.mistral_model
 
     async def complete(self, prompt: str, system_prompt: str | None = None) -> str:
         if not self.api_key:
@@ -326,15 +402,15 @@ class MistralProvider(LLMProvider):
                 data = resp.json()
                 return data["choices"][0]["message"]["content"] or ""
             except Exception as e:
-                raise LLMProviderError(f"Mistral API request failed: {e}") from e
+                raise LLMProviderError(_format_http_error("Mistral", e)) from e
 
 
 class AnthropicProvider(LLMProvider):
     """Anthropic Claude provider using REST API with httpx."""
 
     def __init__(self, api_key: str | None = None, model: str | None = None):
-        self.api_key = api_key or settings.anthropic_api_key
-        self.model = model or settings.anthropic_model
+        self.api_key = api_key if api_key is not None else settings.anthropic_api_key
+        self.model = model if model is not None else settings.anthropic_model
 
     async def complete(self, prompt: str, system_prompt: str | None = None) -> str:
         if not self.api_key:
@@ -368,7 +444,7 @@ class AnthropicProvider(LLMProvider):
                 content = data.get("content", [])
                 return content[0].get("text", "") if content else ""
             except Exception as e:
-                raise LLMProviderError(f"Anthropic API request failed: {e}") from e
+                raise LLMProviderError(_format_http_error("Anthropic", e)) from e
 
 
 class OpenAICompatibleProvider(LLMProvider):
@@ -410,9 +486,7 @@ class OpenAICompatibleProvider(LLMProvider):
                 data = resp.json()
                 return data["choices"][0]["message"]["content"] or ""
             except Exception as e:
-                raise LLMProviderError(
-                    f"Custom/Compatible LLM API request to {endpoint} failed: {e}"
-                ) from e
+                raise LLMProviderError(_format_http_error("Compatible/OpenAI", e)) from e
 
 
 def get_llm_provider(provider_name: str | None = None) -> LLMProvider:
@@ -422,9 +496,33 @@ def get_llm_provider(provider_name: str | None = None) -> LLMProvider:
         return GeminiProvider()
     elif name == "mistral":
         return MistralProvider()
+    elif name == "deepseek":
+        api_key = settings.deepseek_api_key or os.getenv("DEEPSEEK_API_KEY")
+        model = settings.deepseek_model or "deepseek-chat"
+        return OpenAICompatibleProvider(
+            api_key=api_key,
+            base_url="https://api.deepseek.com/v1",
+            model=model,
+        )
     elif name in ("anthropic", "claude"):
         return AnthropicProvider()
-    elif name in ("custom", "compatible", "ollama", "groq", "deepseek", "openrouter", "together"):
+    elif name in ("ollama", "local"):
+        base_url = settings.llm_base_url or os.getenv("OLLAMA_BASE_URL") or "http://127.0.0.1:11434/v1"
+        model = settings.custom_model if (settings.custom_model and settings.custom_model != "default") else "qwen3-coder:30b"
+        return OpenAICompatibleProvider(
+            api_key="ollama",
+            base_url=base_url,
+            model=model,
+        )
+    elif name in ("lmstudio", "lm-studio"):
+        base_url = settings.llm_base_url or "http://127.0.0.1:1234/v1"
+        model = settings.custom_model if (settings.custom_model and settings.custom_model != "default") else "local-model"
+        return OpenAICompatibleProvider(
+            api_key="lmstudio",
+            base_url=base_url,
+            model=model,
+        )
+    elif name in ("custom", "compatible", "groq", "openrouter", "together", "vllm"):
         return OpenAICompatibleProvider()
     elif name == "openai":
         return OpenAIProvider()

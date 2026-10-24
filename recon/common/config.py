@@ -145,13 +145,15 @@ class ReconSettings(BaseSettings):
     openai_api_key: str | None = Field(default_factory=lambda: os.getenv("OPENAI_API_KEY"))
     mistral_api_key: str | None = Field(default_factory=lambda: os.getenv("MISTRAL_API_KEY"))
     anthropic_api_key: str | None = Field(default_factory=lambda: os.getenv("ANTHROPIC_API_KEY"))
+    deepseek_api_key: str | None = Field(default_factory=lambda: os.getenv("DEEPSEEK_API_KEY"))
     llm_base_url: str | None = Field(
         default_factory=lambda: os.getenv("OPENAI_BASE_URL") or os.getenv("RECON_LLM_BASE_URL")
     )
-    gemini_model: str = "gemini-2.5-flash"
-    openai_model: str = "gpt-4o-mini"
-    mistral_model: str = "mistral-small-latest"
-    anthropic_model: str = "claude-3-5-haiku-20241022"
+    gemini_model: str = "gemini-3.8-flash"
+    openai_model: str = "gpt-6-luna"
+    mistral_model: str = "mistral-medium-latest"
+    anthropic_model: str = "claude-sonnet-5-5"
+    deepseek_model: str = "deepseek-chat"
     custom_model: str = Field(default="default", alias="RECON_LLM_MODEL")
     llm_temperature: float = 0.2
 

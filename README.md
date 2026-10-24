@@ -17,62 +17,69 @@ Recon QA discovers endpoints, derives test cases from their schemas, executes th
 
 > **Use Recon only on applications you own or are explicitly authorized to test.** Generated requests can create, update, or delete data described by the target API.
 
-## Try it in two minutes
+## Quick Start (Just 1 Command)
 
 Requires Python 3.12 or newer.
 
 ```bash
-python -m pip install recon-qa
-recon demo
+pip install recon-qa
+recon test http://localhost:8000
 ```
 
-`recon demo` starts an intentionally defective application on your machine, tests it, and produces a real report without an API key or external service. Finding failures is the expected successful outcome.
+That's it. Recon automatically:
+1. **Discovers** OpenAPI endpoints & web routes
+2. **Generates** happy-path, boundary fuzzing, negative validation & authentication tests
+3. **Executes** tests with bounded concurrency and live terminal feedback
+4. **Classifies** failures with deterministic root-cause analysis
+5. **Generates** a self-contained interactive HTML & JSON report
 
-<p align="center">
-  <img src="https://raw.githubusercontent.com/ttnhan227/recon/main/docs/assets/demo.gif" alt="Recon QA local demo: installation, OpenAPI discovery, generated checks, detected defects, and HTML report" width="900">
-</p>
+---
+
+### Or Let the Autonomous Agent Handle It
+
+Give Recon natural language instructions to test your web app and fix bugs:
 
 ```bash
-recon report
+recon agent "Test checkout on localhost:8000 and fix any bugs"
 ```
 
-That opens the latest report in your browser, with every generated check, observed response, assertion, and failure classification available for review.
-
-## Test your own API
-
-For an application that exposes OpenAPI at a conventional path such as `/openapi.json` or `/swagger.json`:
+Or drop into an interactive QA pair-programming session:
 
 ```bash
-recon test http://localhost:8000 --no-ai
+recon agent
 ```
 
-Pass a non-standard local or remote specification explicitly:
+---
+
+## Optional Commands
+
+You only need the command above to get your testing done. These optional commands are available when you need extra control:
+
+| Command | Description |
+| :--- | :--- |
+| `recon fix` | Automatically patch source code defects found in your test run |
+| `recon report` | Open the interactive HTML test report in your default browser |
+| `recon demo` | Run an instant zero-setup 5-second local demo with intentional defects |
+| `recon config` | Configure AI provider keys (`recon set-key`) or switch models (`recon model`) |
+| `recon doctor` | Check runtime, Playwright Chromium setup, and system diagnostics |
+
+---
+
+## Common Flags for `recon test`
 
 ```bash
-recon test http://localhost:8000 --spec ./openapi.yaml --no-ai
+# Include browser discovery & UI interaction checks
+recon test http://localhost:8000 --browser
+
+# Supply authentication
+recon test http://localhost:8000 --header "Authorization: Bearer <token>"
+
+# Limit testing to specific endpoints
+recon test http://localhost:8000 --include "/api/orders*" --exclude "/api/admin*"
+
+# Pass custom or non-standard OpenAPI specification file
+recon test http://localhost:8000 --spec ./openapi.yaml
 ```
-
-Common options:
-
-```bash
-# Include browser discovery and checks
-python -m pip install "recon-qa[browser]"
-python -m playwright install chromium
-recon test http://localhost:8000 --browser --no-ai
-
-# Supply authentication without storing it in Recon configuration
-recon test http://localhost:8000 \
-  --header "Authorization: Bearer <token>" \
-  --no-ai
-
-# Limit a run to selected routes
-recon test http://localhost:8000 \
-  --include "/api/orders*" \
-  --exclude "/api/admin*" \
-  --no-ai
-```
-
-On PowerShell, replace the trailing `\` characters with backticks or put the command on one line.
 
 Reports are stored under `~/.recon/reports/` by default. Use `--report-dir` to choose another location. A test run exits with code `1` when it finds failed checks, which makes the command useful as a CI quality gate.
 
@@ -111,30 +118,24 @@ flowchart TD
 
 Recon is intended to expose suspicious behavior for review. It is not a proof of correctness, a replacement for application-specific tests, or a substitute for a professional security assessment.
 
-## Useful commands
+## AI Providers & Models
 
-```text
-recon demo                 Run the reproducible local example
-recon scan <target>        Discover API routes and optional web pages
-recon generate <target>    Write the generated test suite as JSON
-recon test <target>        Run discovery, generation, execution, and reporting
-recon report               Open the latest HTML report
-recon doctor               Check the local runtime and optional browser setup
-recon providers            Show available AI provider configuration
-recon --help               Show every command and option
-```
-
-## Optional AI analysis
-
-The default provider is `mock`, a deterministic offline implementation used for development and demonstrations. Real providers are opt-in and use your own credentials.
+Recon works out of the box with zero configuration using deterministic failure analysis. To connect frontier reasoning models for autonomous agent tasks:
 
 ```bash
-recon set-key
-recon use openai
-recon test http://localhost:8000 --ai
+recon config set-key
+# Select from Anthropic (claude-sonnet-5-5), OpenAI (gpt-6-luna), Gemini (gemini-3.8-flash), DeepSeek, Mistral, or local Ollama
 ```
 
-Supported REST integrations include Gemini, OpenAI, Anthropic, Mistral, Ollama, and other OpenAI-compatible endpoints. Use `recon providers` to inspect the active configuration. Keep credentials in environment variables or Recon's local configuration—never commit them.
+To switch models anytime:
+```bash
+recon config model
+```
+
+Inspect active providers:
+```bash
+recon config list
+```
 
 ## CI example
 

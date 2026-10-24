@@ -215,3 +215,51 @@ class RunSummary(BaseModel):
     failure_breakdown: dict[str, int] = Field(default_factory=dict)
     category_breakdown: dict[str, dict[str, int]] = Field(default_factory=dict)
     exit_code: int = 0
+
+
+class AgentInteractiveElement(BaseModel):
+    id: int
+    tag: str
+    text: str
+    selector: str
+    element_type: str | None = None
+    href: str | None = None
+    role: str | None = None
+
+
+class AgentPageObservation(BaseModel):
+    url: str
+    title: str
+    interactive_elements: list[AgentInteractiveElement] = Field(default_factory=list)
+    recent_errors: list[str] = Field(default_factory=list)
+
+
+class AgentAction(BaseModel):
+    action: str  # click, fill, navigate, scroll, wait, finish, fail
+    thought: str
+    selector: str | None = None
+    value: str | None = None
+    url: str | None = None
+    seconds: float | None = None
+
+
+class AgentStep(BaseModel):
+    step_number: int
+    action: AgentAction
+    url: str
+    duration_ms: float = 0.0
+    status: TestStatus = TestStatus.PASSED
+    screenshot_path: str | None = None
+    error: str | None = None
+
+
+class AgentExecutionReport(BaseModel):
+    goal: str
+    start_url: str
+    final_url: str
+    status: TestStatus
+    steps: list[AgentStep] = Field(default_factory=list)
+    errors_detected: list[str] = Field(default_factory=list)
+    summary: str = ""
+    duration_seconds: float = 0.0
+

@@ -21,7 +21,16 @@ current_worker_id: contextvars.ContextVar[str | None] = contextvars.ContextVar(
     "worker_id", default=None
 )
 
-console = Console(stderr=True)
+if sys.platform == "win32":
+    try:
+        if sys.stdout and hasattr(sys.stdout, "reconfigure"):
+            sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        if sys.stderr and hasattr(sys.stderr, "reconfigure"):
+            sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+
+console = Console(legacy_windows=False)
 
 
 class JSONLogFormatter(logging.Formatter):

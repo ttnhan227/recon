@@ -7,9 +7,16 @@ from typing import Annotated, Optional
 
 import typer
 from rich.panel import Panel
+from rich.prompt import Prompt
 from rich.table import Table
 
-from recon.apps.cli.config_cli import config_app, list_providers, set_key, use_provider
+from recon.apps.cli.config_cli import (
+    config_app,
+    list_providers,
+    set_key,
+    set_model_command,
+    use_provider,
+)
 from recon.apps.cli.doctor import run_doctor
 from recon.common.config import get_project_slug, get_recon_home, settings
 from recon.common.exceptions import ReconError
@@ -26,13 +33,39 @@ app = typer.Typer(
     no_args_is_help=True,
 )
 
+
+def version_callback(value: bool):
+    if value:
+        from recon import __version__
+
+        console.print(f"Recon QA version [bold cyan]{__version__}[/bold cyan]")
+        raise typer.Exit()
+
+
+@app.callback()
+def main_callback(
+    version: Annotated[
+        Optional[bool],
+        typer.Option(
+            "--version",
+            "-v",
+            help="Show Recon QA version and exit.",
+            callback=version_callback,
+            is_eager=True,
+        ),
+    ] = None,
+):
+    """Recon QA root CLI."""
+    pass
+
 # Add 'recon config' subcommands
 app.add_typer(config_app, name="config")
 
 # Top-level shortcuts for convenience
-app.command("set-key", help="Shortcut to interactively set/update an AI API key.")(set_key)
-app.command("use", help="Shortcut to switch the active AI provider.")(use_provider)
-app.command("providers", help="Shortcut to list all supported AI providers and active status.")(
+app.command("set-key", help="Shortcut to interactively set/update an AI API key.", hidden=True)(set_key)
+app.command("use", help="Shortcut to switch the active AI provider.", hidden=True)(use_provider)
+app.command("model", help="Shortcut to select or switch the active AI model.", hidden=True)(set_model_command)
+app.command("providers", help="Shortcut to list all supported AI providers and active status.", hidden=True)(
     list_providers
 )
 
@@ -45,7 +78,7 @@ def normalize_cli_target(target: str) -> str:
     return cleaned
 
 
-@app.command("scan")
+@app.command("scan", hidden=True)
 def scan_command(
     target: Annotated[str, typer.Argument(help="Target URL (e.g. http://localhost:8000)")],
     spec: Annotated[
@@ -111,7 +144,7 @@ def scan_command(
         raise typer.Exit(code=1)
 
 
-@app.command("generate")
+@app.command("generate", hidden=True)
 def generate_command(
     target: Annotated[str, typer.Argument(help="Target URL or host")],
     spec: Annotated[
@@ -356,7 +389,7 @@ def test_command(
         raise typer.Exit(code=1)
 
 
-@app.command("analyze")
+@app.command("analyze", hidden=True)
 def analyze_command(
     target_or_run_id: Annotated[
         str, typer.Argument(help="Run ID or path to results.json")
@@ -544,7 +577,7 @@ def doctor_command(
     raise typer.Exit(code=0 if healthy else 1)
 
 
-@app.command("serve-demo")
+@app.command("serve-demo", hidden=True)
 def serve_demo_command(
     port: Annotated[int, typer.Option("--port", "-p", help="Port to listen on")] = 8000,
     host: Annotated[str, typer.Option("--host", "-h", help="Host interface")] = "127.0.0.1",
@@ -612,7 +645,7 @@ def demo_command(
     )
 
     try:
-        deadline = time.monotonic() + 12
+        deadline = time.monotonic() + 30
         while time.monotonic() < deadline:
             if server.poll() is not None:
                 console.print(
@@ -624,7 +657,7 @@ def demo_command(
                 response = httpx.get(f"{target}/api/health", timeout=0.5)
                 if response.status_code == 200:
                     break
-            except httpx.HTTPError:
+            except Exception:
                 pass
             time.sleep(0.2)
         else:
@@ -667,15 +700,30 @@ def demo_command(
         )
     finally:
         if server.poll() is None:
+            try:
+                import os
+
+                if os.name == "nt":
+                    subprocess.run(
+                        ["taskkill", "/F", "/T", "/PID", str(server.pid)],
+                        check=False,
+                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL,
+                    )
+            except Exception:
+                pass
             server.terminate()
             try:
                 server.wait(timeout=5)
             except subprocess.TimeoutExpired:
                 server.kill()
-                server.wait(timeout=5)
+                try:
+                    server.wait(timeout=5)
+                except Exception:
+                    pass
 
 
-@app.command("serve-api")
+@app.command("serve-api", hidden=True)
 def serve_api_command(
     port: Annotated[int, typer.Option("--port", "-p", help="Port to listen on")] = 8080,
     host: Annotated[str, typer.Option("--host", "-h", help="Host interface")] = "127.0.0.1",
@@ -686,6 +734,107 @@ def serve_api_command(
     console.print(f"[bold green]Starting Recon API Server at http://{host}:{port}[/bold green]")
     console.print(f"[dim]Interactive API Docs: http://{host}:{port}/docs[/dim]\n")
     uvicorn.run("recon.apps.api.server:api_app", host=host, port=port, log_level="info")
+
+
+def ensure_api_key_configured(interactive: bool = True) -> bool:
+    """Verifies that an AI API key or provider is configured before running the agent."""
+    import os
+
+    from recon.apps.cli.config_cli import PROVIDER_KEY_MAP, read_env_file, set_key
+
+    env_data = read_env_file()
+    active_provider = (env_data.get("RECON_LLM_PROVIDER") or settings.llm_provider).lower()
+
+    has_key = False
+    if active_provider in ("ollama", "local", "lmstudio", "vllm"):
+        has_key = True
+    elif active_provider in PROVIDER_KEY_MAP:
+        key_var = PROVIDER_KEY_MAP[active_provider]
+        has_key = bool(env_data.get(key_var) or os.getenv(key_var))
+
+    if not has_key:
+        for p, key_var in PROVIDER_KEY_MAP.items():
+            if env_data.get(key_var) or os.getenv(key_var):
+                has_key = True
+                break
+
+    if has_key:
+        return True
+
+    console.print(
+        Panel(
+            "[bold yellow]⚠️  No AI API Key Configured[/bold yellow]\n\n"
+            "Recon Agent requires an active AI provider (Gemini, OpenAI, Anthropic, or local Ollama) "
+            "to reason and interact autonomously.\n\n"
+            "[dim]You can configure one anytime via:[/dim] [cyan]recon config[/cyan]\n"
+            "[dim]Or set environment variable:[/dim] [cyan]export GEMINI_API_KEY=\"...\"[/cyan]",
+            title="[bold red]API Key Missing[/bold red]",
+            border_style="yellow",
+        )
+    )
+
+    if not interactive:
+        console.print("[bold red]❌ Recon Agent requires an AI API key.[/bold red] Run [cyan]recon config[/cyan] to configure one.\n")
+        raise typer.Exit(code=1)
+
+    console.print("[bold]Options:[/bold]")
+    console.print("  [bold green]1[/bold green]. Configure an API key now (Gemini, OpenAI, Anthropic, Ollama)")
+    console.print("  [bold red]2[/bold red]. Exit")
+
+    choice = Prompt.ask("Select an option", choices=["1", "2"], default="1")
+    if choice == "1":
+        set_key()
+        return True
+    else:
+        raise typer.Exit(code=0)
+
+
+@app.command("agent")
+def agent_command(
+    instruction: Annotated[
+        Optional[str],
+        typer.Argument(
+            help="Natural language instruction (e.g. 'Test checkout on localhost:8000 and fix bugs'). Omit to start interactive chat mode."
+        ),
+    ] = None,
+    target: Annotated[
+        Optional[str],
+        typer.Option("--target", "-t", help="Optional default target URL (e.g. http://localhost:8000)"),
+    ] = None,
+    headless: Annotated[
+        bool, typer.Option("--headless/--headed", help="Run browser in headless or visible browser window mode")
+    ] = True,
+    report_dir: Annotated[
+        Optional[Path], typer.Option("--report-dir", help="Directory where agent artifacts are saved")
+    ] = None,
+):
+    """Autonomous QA & Software Engineering Agent (Natural Language / Interactive Mode)."""
+    # Pre-flight check: ensure user has an API key or knows they are in offline mode
+    ensure_api_key_configured(interactive=instruction is None)
+    actual_report_dir = report_dir or (get_recon_home() / "reports")
+    from recon.agent.master_agent import ReconMasterAgent
+
+    async def _run():
+        agent = ReconMasterAgent(output_dir=actual_report_dir)
+        if target:
+            agent.default_target = normalize_cli_target(target)
+
+        if instruction:
+            reply = await agent.execute_prompt(instruction, headless=headless)
+            console.print(f"\n[bold cyan]Recon:[/bold cyan] {reply}")
+        else:
+            await agent.run_interactive(headless=headless)
+
+    try:
+        asyncio.run(_run())
+    except ReconError as err:
+        console.print(f"[bold red]Error:[/bold red] {err}")
+        raise typer.Exit(code=1)
+
+
+# Shortcut alias: 'recon chat' behaves the same as 'recon agent'
+
+
 
 
 if __name__ == "__main__":

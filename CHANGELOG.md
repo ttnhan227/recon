@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.3.0] - 2026-10-25
+
+### Added
+- **Autonomous QA & Engineering Agent (`recon agent`)**: Natural language goal execution and interactive chat mode (`ReconMasterAgent`) coupled with autonomous browser agent (`ReconBrowserAgent`) capable of navigating, filling forms, and verifying web applications with Playwright.
+- **Autonomous Self-Healing Code Repair (`recon fix`)**: Automatically locates defect handler source files and lines via AST/regex parsing, synthesizes minimal, targeted bug fixes using LLM reasoning, and renders colorized unified diffs.
+- **Streamlined 7-Command CLI**: Simplified CLI down to 7 essential, focused commands (`test`, `agent`, `fix`, `report`, `config`, `demo`, `doctor`), emphasizing the 1-command testing workflow (`recon test <target>`).
+- **Modern 2026 AI Model Catalog**: Built-in support and pre-configured defaults for current frontier and efficient models:
+  - **Google Gemini**: `gemini-3.5-flash`, `gemini-3.8-flash`, `gemini-4-argon`, `gemini-3.5-flash-lite`, `gemini-3.6-flash`.
+  - **OpenAI**: `gpt-6-luna`, `gpt-6.1-sol`, `gpt-6-astra`.
+  - **Anthropic**: `claude-sonnet-5-5`, `claude-opus-5-5`, `claude-haiku-5-5`, `claude-fable-5-1`.
+  - **Mistral**: `mistral-medium-latest`, `codestral-latest`, `mistral-large-latest`, `mistral-small-latest`.
+  - **DeepSeek**: `deepseek-chat` (V3), `deepseek-reasoner` (R1).
+- **Unified Local & Cloud Model Architecture**: Zero-key local model support via Ollama (`http://127.0.0.1:11434/v1`), LM Studio, and vLLM with hot-switching via `recon config use <provider>` and `recon config model <model>`.
+- **System Diagnostics (`recon doctor`)**: Added comprehensive diagnostics verifying Python runtime, Playwright Chromium binaries, Docker CLI, SQLite persistence, and AI connectivity.
+
+### Fixed
+- **Windows Process-Tree Cleanup**: Implemented process tree termination (`taskkill /F /T`) for demo application servers on Windows to prevent orphaned background Uvicorn worker processes from retaining ports.
+- **Windows Unicode Encoding**: Hardened Rich console stream output to UTF-8 with `legacy_windows=False` to prevent `charmap` codec crashes on Windows consoles with Unicode icons.
+- **Descriptive HTTP Error Diagnostics**: Added structured HTTP error formatting (`_format_http_error`) to parse provider response bodies, surfacing clear status codes and messages (401 invalid key, 403 billing, 429 rate limit, 503 high demand, timeouts) instead of blank exception strings.
+- **CI Non-Interactive Stdin Handling**: Added non-interactive tty detection in `recon fix` and `ensure_api_key_configured` to prevent hanging in headless automation or CI pipelines.
+- **Report Path Resolution**: Enhanced report resolution in `recon report` and `recon fix` to search across target project slug, working directory slug, and centralized `~/.recon/reports/`.
+
+---
+
 ## [0.2.2] - 2026-10-19
 
 ### Added
