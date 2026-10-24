@@ -108,7 +108,11 @@ async def run_doctor(target_url: str | None = None) -> bool:
         )
     elif provider_name in ("ollama", "local"):
         base_url = settings.llm_base_url or "http://127.0.0.1:11434/v1"
-        active_model = settings.custom_model if (settings.custom_model and settings.custom_model != "default") else "qwen3-coder:30b"
+        active_model = (
+            settings.custom_model
+            if (settings.custom_model and settings.custom_model != "default")
+            else "qwen3-coder:30b"
+        )
         table.add_row(
             "AI Provider (Ollama Local)",
             "[green]READY[/green]",

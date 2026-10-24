@@ -48,10 +48,16 @@ PROVIDER_AVAILABLE_MODELS: dict[str, list[tuple[str, str]]] = {
         ("claude-sonnet-5-5", "Recommended - Best balance of coding quality, speed and cost"),
         ("claude-opus-5-5", "Deep debugging, hard multi-step logic"),
         ("claude-haiku-5-5", "Fast and cheap, for high-volume checks"),
-        ("claude-fable-5-1", "Top tier, with extra safety measures for biology, cybersecurity and LLM R&D"),
+        (
+            "claude-fable-5-1",
+            "Top tier, with extra safety measures for biology, cybersecurity and LLM R&D",
+        ),
     ],
     "openai": [
-        ("gpt-6-luna", "Recommended - Cheapest and fastest, $0.10 in / $0.50 out per 1M tokens, 1.05M context"),
+        (
+            "gpt-6-luna",
+            "Recommended - Cheapest and fastest, $0.10 in / $0.50 out per 1M tokens, 1.05M context",
+        ),
         ("gpt-6.1-sol", "Near-flagship quality at $2 / $10"),
         ("gpt-6-astra", "Flagship for complex reasoning and coding, $10 / $50"),
     ],
@@ -62,7 +68,10 @@ PROVIDER_AVAILABLE_MODELS: dict[str, list[tuple[str, str]]] = {
         ("gemini-3.6-flash", "Previous-generation Flash, still stable"),
     ],
     "mistral": [
-        ("mistral-medium-latest", "Recommended - Medium 3.5, frontier multimodal model optimized for agentic and coding use cases"),
+        (
+            "mistral-medium-latest",
+            "Recommended - Medium 3.5, frontier multimodal model optimized for agentic and coding use cases",
+        ),
         ("codestral-latest", "Codestral 25.08, for code completion and fill-in-the-middle"),
         ("mistral-large-latest", "Large 4, general-purpose multimodal"),
         ("mistral-small-latest", "Small 4, a hybrid instruct, reasoning and coding model"),
@@ -72,7 +81,10 @@ PROVIDER_AVAILABLE_MODELS: dict[str, list[tuple[str, str]]] = {
         ("deepseek-reasoner", "DeepSeek-R1 frontier reasoning model with native thinking trace"),
     ],
     "ollama": [
-        ("qwen3-coder:30b", "Recommended - Best local coding agent, ~19 GB, 256K context, needs 24 GB+ GPU"),
+        (
+            "qwen3-coder:30b",
+            "Recommended - Best local coding agent, ~19 GB, 256K context, needs 24 GB+ GPU",
+        ),
         ("qwen3.6:27b", "Newer Qwen, ~17 GB, 256K context"),
         ("gpt-oss:20b", "Runs on about 16 GB RAM"),
         ("gemma4:26b", "Google open model, for laptops with 16 GB RAM"),
@@ -158,7 +170,16 @@ def list_providers():
     table.add_column("Configured Key", style="yellow", overflow="fold")
     table.add_column("Default Model", style="cyan", overflow="fold")
 
-    all_providers = ["gemini", "openai", "anthropic", "deepseek", "mistral", "ollama", "custom", "mock"]
+    all_providers = [
+        "gemini",
+        "openai",
+        "anthropic",
+        "deepseek",
+        "mistral",
+        "ollama",
+        "custom",
+        "mock",
+    ]
 
     for p in all_providers:
         is_active = p == active_provider
@@ -197,18 +218,22 @@ def list_providers():
     console.print("[dim]To set an API key:  [bold]recon config set-key [provider][/bold][/dim]")
 
 
-def test_api_key_connection(provider_name: str, api_key: str, model: str | None = None) -> tuple[bool, str]:
+def test_api_key_connection(
+    provider_name: str, api_key: str, model: str | None = None
+) -> tuple[bool, str]:
     """Sends a fast test completion request to verify that the API key is valid and working."""
     p_name = provider_name.lower()
     from recon.llm.provider import (
         AnthropicProvider,
         GeminiProvider,
+        LLMProvider,
         MistralProvider,
         OpenAICompatibleProvider,
         OpenAIProvider,
     )
 
     try:
+        provider: LLMProvider
         if p_name == "gemini":
             provider = GeminiProvider(api_key=api_key, model=model or "gemini-3.8-flash")
         elif p_name == "openai":
@@ -225,7 +250,9 @@ def test_api_key_connection(provider_name: str, api_key: str, model: str | None 
             provider = MistralProvider(api_key=api_key, model=model or "mistral-small-latest")
         elif p_name in ("ollama", "custom", "compatible"):
             base_url = api_key if "http" in api_key else "http://localhost:11434/v1"
-            provider = OpenAICompatibleProvider(api_key="ollama", base_url=base_url, model=model or "qwen3-coder:30b")
+            provider = OpenAICompatibleProvider(
+                api_key="ollama", base_url=base_url, model=model or "qwen3-coder:30b"
+            )
         elif p_name == "mock":
             return True, "Mock provider ready."
         else:
@@ -235,7 +262,11 @@ def test_api_key_connection(provider_name: str, api_key: str, model: str | None 
         return True, "API connection verified successfully!"
     except Exception as e:
         err_msg = str(e)
-        if "401" in err_msg or "unauthorized" in err_msg.lower() or "invalid_api_key" in err_msg.lower():
+        if (
+            "401" in err_msg
+            or "unauthorized" in err_msg.lower()
+            or "invalid_api_key" in err_msg.lower()
+        ):
             return False, "Invalid API Key: 401 Unauthorized from provider."
         elif "403" in err_msg or "permission" in err_msg.lower():
             return False, "Access Denied: 403 Forbidden. Check your account billing or permissions."
@@ -259,7 +290,8 @@ def set_key(
         bool, typer.Option("--use/--no-use", help="Set as the active provider")
     ] = True,
     verify: Annotated[
-        bool, typer.Option("--verify/--no-verify", help="Verify the API key by testing the connection")
+        bool,
+        typer.Option("--verify/--no-verify", help="Verify the API key by testing the connection"),
     ] = True,
     local: Annotated[
         bool,
@@ -269,12 +301,20 @@ def set_key(
     """Interactively sets or updates an AI provider API key. Saved globally to ~/.recon/.env by default."""
     if not provider:
         console.print("[bold cyan]Select an AI Provider to configure:[/bold cyan]")
-        console.print("  1. [bold yellow]Anthropic[/bold yellow] (claude-sonnet-5-5, claude-opus-5-5, claude-haiku-5-5)")
+        console.print(
+            "  1. [bold yellow]Anthropic[/bold yellow] (claude-sonnet-5-5, claude-opus-5-5, claude-haiku-5-5)"
+        )
         console.print("  2. [bold blue]OpenAI[/bold blue] (gpt-6-luna, gpt-6.1-sol, gpt-6-astra)")
-        console.print("  3. [bold green]Gemini[/bold green] (gemini-3.8-flash, gemini-4-argon, gemini-3.5-flash-lite)")
-        console.print("  4. [bold magenta]Mistral[/bold magenta] (mistral-medium-latest, codestral-latest)")
+        console.print(
+            "  3. [bold green]Gemini[/bold green] (gemini-3.8-flash, gemini-4-argon, gemini-3.5-flash-lite)"
+        )
+        console.print(
+            "  4. [bold magenta]Mistral[/bold magenta] (mistral-medium-latest, codestral-latest)"
+        )
         console.print("  5. [bold cyan]DeepSeek[/bold cyan] (deepseek-chat, deepseek-reasoner)")
-        console.print("  6. [bold white]Ollama[/bold white] (qwen3-coder:30b, qwen3.6:27b, gpt-oss:20b)")
+        console.print(
+            "  6. [bold white]Ollama[/bold white] (qwen3-coder:30b, qwen3.6:27b, gpt-oss:20b)"
+        )
         console.print("  7. [bold dim]Custom / Other[/bold dim] (Groq, OpenRouter, Together, vLLM)")
 
         choice = Prompt.ask(
@@ -316,7 +356,9 @@ def set_key(
             console.print(f"\n[bold cyan]Select a model for {provider.capitalize()}:[/bold cyan]")
             for idx, (m_id, m_desc) in enumerate(models, 1):
                 console.print(f"  {idx}. [bold green]{m_id}[/bold green] - [dim]{m_desc}[/dim]")
-            console.print(f"  {len(models) + 1}. [yellow]Custom[/yellow] (enter your own model name)")
+            console.print(
+                f"  {len(models) + 1}. [yellow]Custom[/yellow] (enter your own model name)"
+            )
 
             choices = [str(i) for i in range(1, len(models) + 2)]
             model_choice = Prompt.ask("Choose model", choices=choices, default="1")
@@ -335,15 +377,21 @@ def set_key(
 
     # Live verification of the key before saving!
     if verify:
-        with console.status(f"[bold cyan]Verifying API key with {provider.capitalize()}...[/bold cyan]"):
+        with console.status(
+            f"[bold cyan]Verifying API key with {provider.capitalize()}...[/bold cyan]"
+        ):
             is_valid, verify_msg = test_api_key_connection(provider, val_for_test, model=model)
 
         if not is_valid:
             console.print(f"\n[bold red]❌ API Key Verification Failed:[/bold red] {verify_msg}")
-            console.print("[yellow]The key was NOT saved. Please check your credentials and try again.[/yellow]")
+            console.print(
+                "[yellow]The key was NOT saved. Please check your credentials and try again.[/yellow]"
+            )
             raise typer.Exit(1)
 
-        console.print(f"[bold green]✓ Verified connection with {provider.capitalize()} successfully![/bold green]")
+        console.print(
+            f"[bold green]✓ Verified connection with {provider.capitalize()} successfully![/bold green]"
+        )
 
     saved_path = update_env_file(updates, is_local=local)
     scope_str = "Local project (.env)" if local else "Global (~/.recon/.env)"
@@ -376,7 +424,17 @@ def use_provider(
 ):
     """Quickly switches the active AI provider."""
     p = provider.lower()
-    valid = ["gemini", "mistral", "openai", "anthropic", "claude", "deepseek", "ollama", "custom", "mock"]
+    valid = [
+        "gemini",
+        "mistral",
+        "openai",
+        "anthropic",
+        "claude",
+        "deepseek",
+        "ollama",
+        "custom",
+        "mock",
+    ]
     if p not in valid:
         console.print(
             f"[red]Unknown provider '{provider}'. Valid choices: {', '.join(valid)}[/red]"
@@ -395,38 +453,68 @@ def use_provider(
 @config_app.command("model")
 def set_model_command(
     model: Annotated[Optional[str], typer.Argument(help="Model identifier to activate")] = None,
-    provider: Annotated[Optional[str], typer.Option("--provider", "-p", help="Target provider")] = None,
-    local: Annotated[bool, typer.Option("--local", help="Save to local project .env instead of global ~/.recon/.env")] = False,
+    provider: Annotated[
+        Optional[str], typer.Option("--provider", "-p", help="Target provider")
+    ] = None,
+    local: Annotated[
+        bool,
+        typer.Option("--local", help="Save to local project .env instead of global ~/.recon/.env"),
+    ] = False,
 ):
     """Interactively select or switch the active AI model for your provider."""
     env_data = read_env_file()
-    active_provider = (provider or env_data.get("RECON_LLM_PROVIDER") or settings.llm_provider).lower()
+    active_provider = (
+        provider or env_data.get("RECON_LLM_PROVIDER") or settings.llm_provider
+    ).lower()
 
-    if (active_provider == "mock" or active_provider not in PROVIDER_AVAILABLE_MODELS) and not provider:
+    if (
+        active_provider == "mock" or active_provider not in PROVIDER_AVAILABLE_MODELS
+    ) and not provider:
         # Check if user has any provider key configured
         for p, key_var in PROVIDER_KEY_MAP.items():
             if env_data.get(key_var) or os.getenv(key_var):
                 active_provider = p
                 break
         else:
-            console.print("[bold cyan]Which provider would you like to select a model for?[/bold cyan]")
-            console.print("  1. [bold yellow]Anthropic[/bold yellow] (claude-sonnet-5-5, claude-opus-5-5)")
-            console.print("  2. [bold blue]OpenAI[/bold blue] (gpt-6-luna, gpt-6.1-sol, gpt-6-astra)")
+            console.print(
+                "[bold cyan]Which provider would you like to select a model for?[/bold cyan]"
+            )
+            console.print(
+                "  1. [bold yellow]Anthropic[/bold yellow] (claude-sonnet-5-5, claude-opus-5-5)"
+            )
+            console.print(
+                "  2. [bold blue]OpenAI[/bold blue] (gpt-6-luna, gpt-6.1-sol, gpt-6-astra)"
+            )
             console.print("  3. [bold green]Gemini[/bold green] (gemini-3.8-flash, gemini-4-argon)")
-            console.print("  4. [bold magenta]Mistral[/bold magenta] (mistral-medium-latest, codestral-latest)")
+            console.print(
+                "  4. [bold magenta]Mistral[/bold magenta] (mistral-medium-latest, codestral-latest)"
+            )
             console.print("  5. [bold cyan]DeepSeek[/bold cyan] (deepseek-chat, deepseek-reasoner)")
             console.print("  6. [bold white]Ollama[/bold white] (qwen3-coder:30b, gpt-oss:20b)")
-            p_choice = Prompt.ask("Choose provider (1-6)", choices=["1", "2", "3", "4", "5", "6"], default="1")
-            p_map = {"1": "anthropic", "2": "openai", "3": "gemini", "4": "mistral", "5": "deepseek", "6": "ollama"}
+            p_choice = Prompt.ask(
+                "Choose provider (1-6)", choices=["1", "2", "3", "4", "5", "6"], default="1"
+            )
+            p_map = {
+                "1": "anthropic",
+                "2": "openai",
+                "3": "gemini",
+                "4": "mistral",
+                "5": "deepseek",
+                "6": "ollama",
+            }
             active_provider = p_map[p_choice]
 
     models = PROVIDER_AVAILABLE_MODELS.get(active_provider, [])
     if not model:
         if models:
-            console.print(f"\n[bold cyan]Select active model for {active_provider.capitalize()}:[/bold cyan]")
+            console.print(
+                f"\n[bold cyan]Select active model for {active_provider.capitalize()}:[/bold cyan]"
+            )
             for idx, (m_id, m_desc) in enumerate(models, 1):
                 console.print(f"  {idx}. [bold green]{m_id}[/bold green] - [dim]{m_desc}[/dim]")
-            console.print(f"  {len(models) + 1}. [yellow]Custom[/yellow] (enter your own model name)")
+            console.print(
+                f"  {len(models) + 1}. [yellow]Custom[/yellow] (enter your own model name)"
+            )
 
             choices = [str(i) for i in range(1, len(models) + 2)]
             choice = Prompt.ask("Choose model", choices=choices, default="1")

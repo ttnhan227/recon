@@ -147,9 +147,7 @@ class ReconBrowserAgent:
             logger.warning(f"Error extracting interactive elements: {e}")
             elements = []
 
-        recent_errs = [
-            log.text for log in evidence.console_logs[-5:] if log.level == "error"
-        ]
+        recent_errs = [log.text for log in evidence.console_logs[-5:] if log.level == "error"]
         return AgentPageObservation(
             url=url,
             title=title,
@@ -290,10 +288,16 @@ class ReconBrowserAgent:
             except Exception as e:
                 err_str = str(e)
                 if "ERR_CONNECTION_REFUSED" in err_str or "ConnectionRefused" in err_str:
-                    console.print(f"\n[bold red]❌ Connection Refused:[/bold red] Cannot reach {start_url}")
-                    console.print("[yellow]Please verify that your local development server is running![/yellow]")
+                    console.print(
+                        f"\n[bold red]❌ Connection Refused:[/bold red] Cannot reach {start_url}"
+                    )
+                    console.print(
+                        "[yellow]Please verify that your local development server is running![/yellow]"
+                    )
                 elif "Timeout" in err_str or "timeout" in err_str.lower():
-                    console.print(f"\n[bold red]❌ Timeout reaching:[/bold red] {start_url} (waited 15s)")
+                    console.print(
+                        f"\n[bold red]❌ Timeout reaching:[/bold red] {start_url} (waited 15s)"
+                    )
                 else:
                     console.print(f"\n[bold red]❌ Navigation error:[/bold red] {e}")
 
@@ -325,7 +329,11 @@ class ReconBrowserAgent:
                     f"[{el.id}] <{el.tag}> '{el.text}' -> selector: `{el.selector}`"
                     for el in obs.interactive_elements[:45]
                 ]
-                elements_str = "\n".join(element_summary) if element_summary else "(No interactive elements found)"
+                elements_str = (
+                    "\n".join(element_summary)
+                    if element_summary
+                    else "(No interactive elements found)"
+                )
 
                 prompt = (
                     f"User Goal: {goal}\n\n"
@@ -344,11 +352,17 @@ class ReconBrowserAgent:
                 action = self._parse_action(raw_response)
 
                 console.print(f"\n[bold yellow]Step {step_num}:[/bold yellow] {action.thought}")
-                console.print(f"[cyan]Action:[/cyan] [bold]{action.action.upper()}[/bold] {action.selector or action.url or action.value or ''}")
+                console.print(
+                    f"[cyan]Action:[/cyan] [bold]{action.action.upper()}[/bold] {action.selector or action.url or action.value or ''}"
+                )
 
                 # Stagnation loop detection: if same action & selector repeated with no URL change
                 action_sig = f"{action.action.lower()}:{action.selector or action.url or ''}"
-                if action_sig == last_action_sig and page.url == last_url and action.action.lower() not in ("finish", "fail", "wait"):
+                if (
+                    action_sig == last_action_sig
+                    and page.url == last_url
+                    and action.action.lower() not in ("finish", "fail", "wait")
+                ):
                     consecutive_repeats += 1
                     if consecutive_repeats >= 2:
                         stagnation_hint = (
@@ -399,11 +413,11 @@ class ReconBrowserAgent:
 
                 # Execute action
                 success, err_msg = await self._execute_action(page, action)
-                screenshot_file = self.screenshots_dir / f"step_{step_num}.png"
+                step_screenshot: Path | None = self.screenshots_dir / f"step_{step_num}.png"
                 try:
-                    await page.screenshot(path=str(screenshot_file), full_page=False)
+                    await page.screenshot(path=str(step_screenshot), full_page=False)
                 except Exception:
-                    screenshot_file = None
+                    step_screenshot = None
 
                 step_duration = round((time.perf_counter() - step_start) * 1000, 2)
                 step_status = TestStatus.PASSED if success else TestStatus.FAILED
@@ -420,7 +434,7 @@ class ReconBrowserAgent:
                         url=page.url,
                         duration_ms=step_duration,
                         status=step_status,
-                        screenshot_path=str(screenshot_file) if screenshot_file else None,
+                        screenshot_path=str(step_screenshot) if step_screenshot else None,
                         error=err_msg,
                     )
                 )
@@ -431,7 +445,7 @@ class ReconBrowserAgent:
         total_duration = round(time.perf_counter() - start_time, 2)
         all_errors = [e for e in evidence.page_errors]
         for req_err in evidence.network_errors:
-            all_errors.append(f"Network request failed: {req_err.url} ({req_err.failure_reason})")
+            all_errors.append(f"Network request failed: {req_err.url} ({req_err.error_text})")
 
         if not summary:
             summary = f"Completed {len(steps)} steps toward goal."

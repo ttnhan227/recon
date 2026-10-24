@@ -87,50 +87,69 @@ class MockProvider(LLMProvider):
         prompt_lower = prompt.lower()
 
         # Check if this is a master agent tool planning request
-        if "autonomous master qa engineer" in (system_prompt or "").lower() or "select the best tool" in prompt_lower:
-            if "browser" in prompt_lower or "navigate" in prompt_lower or "click" in prompt_lower or "cart" in prompt_lower:
-                return json.dumps({
-                    "tool": "browser",
-                    "goal": "Accomplish user browser task",
-                })
+        if (
+            "autonomous master qa engineer" in (system_prompt or "").lower()
+            or "select the best tool" in prompt_lower
+        ):
+            if (
+                "browser" in prompt_lower
+                or "navigate" in prompt_lower
+                or "click" in prompt_lower
+                or "cart" in prompt_lower
+            ):
+                return json.dumps(
+                    {
+                        "tool": "browser",
+                        "goal": "Accomplish user browser task",
+                    }
+                )
             elif "fix" in prompt_lower or "patch" in prompt_lower or "bug" in prompt_lower:
-                return json.dumps({
-                    "tool": "code_fix",
-                    "defect_description": "Fix defect identified in prompt",
-                })
+                return json.dumps(
+                    {
+                        "tool": "code_fix",
+                        "defect_description": "Fix defect identified in prompt",
+                    }
+                )
             elif "scan" in prompt_lower or "discover" in prompt_lower:
-                return json.dumps({
-                    "tool": "scan",
-                })
+                return json.dumps(
+                    {
+                        "tool": "scan",
+                    }
+                )
             elif "api" in prompt_lower or "endpoint" in prompt_lower or "500" in prompt_lower:
-                return json.dumps({
-                    "tool": "api_probe",
-                    "endpoint": "/api/orders",
-                    "method": "POST",
-                })
-            return json.dumps({
-                "tool": "reply",
-                "message": "I processed your request successfully."
-            })
+                return json.dumps(
+                    {
+                        "tool": "api_probe",
+                        "endpoint": "/api/orders",
+                        "method": "POST",
+                    }
+                )
+            return json.dumps(
+                {"tool": "reply", "message": "I processed your request successfully."}
+            )
 
         # Check if this is an autonomous browser agent request
-        if "autonomous qa browser agent" in (system_prompt or "").lower() or "what is the next action?" in prompt_lower:
+        if (
+            "autonomous qa browser agent" in (system_prompt or "").lower()
+            or "what is the next action?" in prompt_lower
+        ):
             if "step 1 of" in prompt_lower:
                 if "health" in prompt_lower or "sức khỏe" in prompt_lower:
-                    return json.dumps({
-                        "thought": "Found health section link ('Sức khỏe'). Navigating there.",
+                    return json.dumps(
+                        {
+                            "thought": "Found health section link ('Sức khỏe'). Navigating there.",
+                            "action": "click",
+                            "selector": "a[href*='suc-khoe']",
+                        }
+                    )
+                return json.dumps(
+                    {
+                        "thought": "Navigating to target element on page.",
                         "action": "click",
-                        "selector": "a[href*='suc-khoe']"
-                    })
-                return json.dumps({
-                    "thought": "Navigating to target element on page.",
-                    "action": "click",
-                    "selector": "a"
-                })
-            return json.dumps({
-                "thought": "Goal successfully accomplished.",
-                "action": "finish"
-            })
+                        "selector": "a",
+                    }
+                )
+            return json.dumps({"thought": "Goal successfully accomplished.", "action": "finish"})
 
         # Check if this is a test generation request
         if (
@@ -507,8 +526,14 @@ def get_llm_provider(provider_name: str | None = None) -> LLMProvider:
     elif name in ("anthropic", "claude"):
         return AnthropicProvider()
     elif name in ("ollama", "local"):
-        base_url = settings.llm_base_url or os.getenv("OLLAMA_BASE_URL") or "http://127.0.0.1:11434/v1"
-        model = settings.custom_model if (settings.custom_model and settings.custom_model != "default") else "qwen3-coder:30b"
+        base_url = (
+            settings.llm_base_url or os.getenv("OLLAMA_BASE_URL") or "http://127.0.0.1:11434/v1"
+        )
+        model = (
+            settings.custom_model
+            if (settings.custom_model and settings.custom_model != "default")
+            else "qwen3-coder:30b"
+        )
         return OpenAICompatibleProvider(
             api_key="ollama",
             base_url=base_url,
@@ -516,7 +541,11 @@ def get_llm_provider(provider_name: str | None = None) -> LLMProvider:
         )
     elif name in ("lmstudio", "lm-studio"):
         base_url = settings.llm_base_url or "http://127.0.0.1:1234/v1"
-        model = settings.custom_model if (settings.custom_model and settings.custom_model != "default") else "local-model"
+        model = (
+            settings.custom_model
+            if (settings.custom_model and settings.custom_model != "default")
+            else "local-model"
+        )
         return OpenAICompatibleProvider(
             api_key="lmstudio",
             base_url=base_url,

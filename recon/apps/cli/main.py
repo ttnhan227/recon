@@ -58,16 +58,21 @@ def main_callback(
     """Recon QA root CLI."""
     pass
 
+
 # Add 'recon config' subcommands
 app.add_typer(config_app, name="config")
 
 # Top-level shortcuts for convenience
-app.command("set-key", help="Shortcut to interactively set/update an AI API key.", hidden=True)(set_key)
-app.command("use", help="Shortcut to switch the active AI provider.", hidden=True)(use_provider)
-app.command("model", help="Shortcut to select or switch the active AI model.", hidden=True)(set_model_command)
-app.command("providers", help="Shortcut to list all supported AI providers and active status.", hidden=True)(
-    list_providers
+app.command("set-key", help="Shortcut to interactively set/update an AI API key.", hidden=True)(
+    set_key
 )
+app.command("use", help="Shortcut to switch the active AI provider.", hidden=True)(use_provider)
+app.command("model", help="Shortcut to select or switch the active AI model.", hidden=True)(
+    set_model_command
+)
+app.command(
+    "providers", help="Shortcut to list all supported AI providers and active status.", hidden=True
+)(list_providers)
 
 
 def normalize_cli_target(target: str) -> str:
@@ -767,18 +772,22 @@ def ensure_api_key_configured(interactive: bool = True) -> bool:
             "Recon Agent requires an active AI provider (Gemini, OpenAI, Anthropic, or local Ollama) "
             "to reason and interact autonomously.\n\n"
             "[dim]You can configure one anytime via:[/dim] [cyan]recon config[/cyan]\n"
-            "[dim]Or set environment variable:[/dim] [cyan]export GEMINI_API_KEY=\"...\"[/cyan]",
+            '[dim]Or set environment variable:[/dim] [cyan]export GEMINI_API_KEY="..."[/cyan]',
             title="[bold red]API Key Missing[/bold red]",
             border_style="yellow",
         )
     )
 
     if not interactive:
-        console.print("[bold red]❌ Recon Agent requires an AI API key.[/bold red] Run [cyan]recon config[/cyan] to configure one.\n")
+        console.print(
+            "[bold red]❌ Recon Agent requires an AI API key.[/bold red] Run [cyan]recon config[/cyan] to configure one.\n"
+        )
         raise typer.Exit(code=1)
 
     console.print("[bold]Options:[/bold]")
-    console.print("  [bold green]1[/bold green]. Configure an API key now (Gemini, OpenAI, Anthropic, Ollama)")
+    console.print(
+        "  [bold green]1[/bold green]. Configure an API key now (Gemini, OpenAI, Anthropic, Ollama)"
+    )
     console.print("  [bold red]2[/bold red]. Exit")
 
     choice = Prompt.ask("Select an option", choices=["1", "2"], default="1")
@@ -799,13 +808,19 @@ def agent_command(
     ] = None,
     target: Annotated[
         Optional[str],
-        typer.Option("--target", "-t", help="Optional default target URL (e.g. http://localhost:8000)"),
+        typer.Option(
+            "--target", "-t", help="Optional default target URL (e.g. http://localhost:8000)"
+        ),
     ] = None,
     headless: Annotated[
-        bool, typer.Option("--headless/--headed", help="Run browser in headless or visible browser window mode")
+        bool,
+        typer.Option(
+            "--headless/--headed", help="Run browser in headless or visible browser window mode"
+        ),
     ] = True,
     report_dir: Annotated[
-        Optional[Path], typer.Option("--report-dir", help="Directory where agent artifacts are saved")
+        Optional[Path],
+        typer.Option("--report-dir", help="Directory where agent artifacts are saved"),
     ] = None,
 ):
     """Autonomous QA & Software Engineering Agent (Natural Language / Interactive Mode)."""
@@ -833,8 +848,6 @@ def agent_command(
 
 
 # Shortcut alias: 'recon chat' behaves the same as 'recon agent'
-
-
 
 
 if __name__ == "__main__":

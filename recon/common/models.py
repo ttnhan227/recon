@@ -262,4 +262,3 @@ class AgentExecutionReport(BaseModel):
     errors_detected: list[str] = Field(default_factory=list)
     summary: str = ""
     duration_seconds: float = 0.0
-

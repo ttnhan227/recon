@@ -114,7 +114,9 @@ class ReconMasterAgent:
     ) -> dict[str, Any]:
         """Probes a backend API endpoint."""
         target_url = url.rstrip("/") + "/" + endpoint.lstrip("/")
-        console.print(f"[bold cyan]🔍 Probing API:[/bold cyan] [bold green]{method.upper()}[/bold green] {target_url}")
+        console.print(
+            f"[bold cyan]🔍 Probing API:[/bold cyan] [bold green]{method.upper()}[/bold green] {target_url}"
+        )
 
         async with httpx.AsyncClient(timeout=15.0) as client:
             try:
@@ -138,8 +140,12 @@ class ReconMasterAgent:
                     "success": is_success,
                 }
             except httpx.ConnectError:
-                console.print(f"[bold red]❌ Connection Refused:[/bold red] Cannot reach {target_url}")
-                console.print("[yellow]Please verify that your server is running and the port is correct![/yellow]")
+                console.print(
+                    f"[bold red]❌ Connection Refused:[/bold red] Cannot reach {target_url}"
+                )
+                console.print(
+                    "[yellow]Please verify that your server is running and the port is correct![/yellow]"
+                )
                 return {
                     "status_code": 0,
                     "error": f"Connection refused to {target_url}",
@@ -167,7 +173,9 @@ class ReconMasterAgent:
         method: str | None = None,
     ) -> dict[str, Any]:
         """Locates buggy source code and proposes an AST-validated patch."""
-        console.print(f"[bold yellow]🛠️ Inspecting source code for defect:[/bold yellow] {defect_description}")
+        console.print(
+            f"[bold yellow]🛠️ Inspecting source code for defect:[/bold yellow] {defect_description}"
+        )
 
         contexts = []
         if endpoint and method:
@@ -182,7 +190,17 @@ class ReconMasterAgent:
                     content = py_file.read_text(encoding="utf-8")
                     if endpoint and endpoint in content:
                         from recon.healing.locator import LocatedContext
-                        contexts.append(LocatedContext(file_path=py_file, line_number=1, preview_snippet=content[:500]))
+
+                        contexts.append(
+                            LocatedContext(
+                                file_path=py_file,
+                                relative_path=str(py_file.relative_to(self.repo_dir)),
+                                line_number=1,
+                                matched_pattern=endpoint or "",
+                                full_content=content,
+                                snippet=content[:500],
+                            )
+                        )
                         break
                 except Exception:
                     continue
@@ -192,7 +210,9 @@ class ReconMasterAgent:
             return {"success": False, "reason": "Source file not found"}
 
         ctx = contexts[0]
-        console.print(f"[dim]Found file:[/dim] [cyan]{ctx.file_path.relative_to(self.repo_dir)}[/cyan]")
+        console.print(
+            f"[dim]Found file:[/dim] [cyan]{ctx.file_path.relative_to(self.repo_dir)}[/cyan]"
+        )
 
         dummy_result = TestResult(
             test_id="agent-fix",
@@ -201,13 +221,15 @@ class ReconMasterAgent:
             test_type=TestType.API,
             status=TestStatus.FAILED,
             failure_evidence=FailureEvidence(
-                category=FailureCategory.APPLICATION_ERROR,
+                failure_category=FailureCategory.APPLICATION_ERROR,
                 message=defect_description,
-                http_trace=HTTPTrace(
-                    method=method or "POST",
-                    url=endpoint or "/",
-                    status_code=500,
-                ),
+                http_traces=[
+                    HTTPTrace(
+                        request_method=method or "POST",
+                        request_url=endpoint or "/",
+                        response_status=500,
+                    )
+                ],
             ),
         )
 
@@ -220,7 +242,9 @@ class ReconMasterAgent:
 
         applied_path = self.patch_applier.apply_patch(patch)
         if applied_path:
-            console.print(f"[bold green]✓ Patch successfully applied to {applied_path.name}[/bold green]")
+            console.print(
+                f"[bold green]✓ Patch successfully applied to {applied_path.name}[/bold green]"
+            )
             return {"success": True, "file": str(applied_path), "explanation": patch.explanation}
         else:
             return {"success": False, "reason": "Patch failed syntax validation"}
@@ -243,18 +267,25 @@ class ReconMasterAgent:
         """Processes a natural language prompt, plans tools, and returns the response."""
         extracted_url = extract_url_from_text(prompt)
         if not extracted_url and not self.default_target:
-            if any(k in prompt.lower() for k in ("test", "browse", "page", "cart", "checkout", "api", "login", "endpoint")):
+            if any(
+                k in prompt.lower()
+                for k in ("test", "browse", "page", "cart", "checkout", "api", "login", "endpoint")
+            ):
                 if interactive:
-                    extracted_url = Prompt.ask("[bold cyan]Enter target URL[/bold cyan]", default="http://localhost:8000")
+                    extracted_url = Prompt.ask(
+                        "[bold cyan]Enter target URL[/bold cyan]", default="http://localhost:8000"
+                    )
                 else:
-                    console.print("[dim]No URL found in prompt; defaulting to http://localhost:8000[/dim]")
+                    console.print(
+                        "[dim]No URL found in prompt; defaulting to http://localhost:8000[/dim]"
+                    )
                     extracted_url = "http://localhost:8000"
 
         extracted_url = extracted_url or self.default_target or "http://localhost:8000"
         self.default_target = extracted_url
 
         planning_prompt = (
-            f"User Instruction: \"{prompt}\"\n"
+            f'User Instruction: "{prompt}"\n'
             f"Repository Directory: {self.repo_dir}\n"
             f"Detected Target URL: {extracted_url}\n\n"
             f"Select the best tool to address this instruction."
@@ -281,7 +312,9 @@ class ReconMasterAgent:
             res = await self._execute_api_probe(target_url, endpoint, method, payload)
 
             if not res.get("success") and ("fix" in prompt.lower() or "repair" in prompt.lower()):
-                console.print(f"[yellow]API returned error status ({res.get('status_code')}). Triggering code fix...[/yellow]")
+                console.print(
+                    f"[yellow]API returned error status ({res.get('status_code')}). Triggering code fix...[/yellow]"
+                )
                 fix_res = await self._execute_code_fix(
                     defect_description=f"Endpoint {method} {endpoint} returned {res.get('status_code')}",
                     endpoint=endpoint,

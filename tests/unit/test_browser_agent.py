@@ -12,11 +12,13 @@ from recon.llm.provider import MockProvider
 
 def test_agent_action_parsing_valid_json():
     agent = ReconBrowserAgent(provider=MockProvider())
-    raw = json.dumps({
-        "action": "click",
-        "selector": "a[href*='suc-khoe']",
-        "thought": "Navigate to the health section on VnExpress"
-    })
+    raw = json.dumps(
+        {
+            "action": "click",
+            "selector": "a[href*='suc-khoe']",
+            "thought": "Navigate to the health section on VnExpress",
+        }
+    )
     action = agent._parse_action(raw)
     assert action.action == "click"
     assert action.selector == "a[href*='suc-khoe']"
@@ -54,16 +56,14 @@ async def test_agent_action_execution_click():
     mock_page.wait_for_selector = AsyncMock()
     mock_page.click = AsyncMock()
 
-    action = AgentAction(
-        action="click",
-        selector="button.submit",
-        thought="Submit the form"
-    )
+    action = AgentAction(action="click", selector="button.submit", thought="Submit the form")
 
     success, err = await agent._execute_action(mock_page, action)
     assert success is True
     assert err is None
-    mock_page.wait_for_selector.assert_called_once_with("button.submit", timeout=8000, state="visible")
+    mock_page.wait_for_selector.assert_called_once_with(
+        "button.submit", timeout=8000, state="visible"
+    )
     mock_page.click.assert_called_once_with("button.submit", timeout=8000)
 
 
@@ -75,10 +75,7 @@ async def test_agent_action_execution_fill():
     mock_page.fill = AsyncMock()
 
     action = AgentAction(
-        action="fill",
-        selector="input#username",
-        value="test_user",
-        thought="Enter username"
+        action="fill", selector="input#username", value="test_user", thought="Enter username"
     )
 
     success, err = await agent._execute_action(mock_page, action)
@@ -92,10 +89,7 @@ async def test_agent_action_execution_finish():
     agent = ReconBrowserAgent(provider=MockProvider())
     mock_page = AsyncMock()
 
-    action = AgentAction(
-        action="finish",
-        thought="Goal achieved"
-    )
+    action = AgentAction(action="finish", thought="Goal achieved")
 
     success, err = await agent._execute_action(mock_page, action)
     assert success is True
@@ -107,11 +101,8 @@ async def test_agent_action_execution_unknown():
     agent = ReconBrowserAgent(provider=MockProvider())
     mock_page = AsyncMock()
 
-    action = AgentAction(
-        action="fly_to_moon",
-        thought="Impossible action"
-    )
+    action = AgentAction(action="fly_to_moon", thought="Impossible action")
 
     success, err = await agent._execute_action(mock_page, action)
     assert success is False
-    assert "Unknown action" in err
+    assert err is not None and "Unknown action" in err

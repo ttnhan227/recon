@@ -29,6 +29,7 @@ def test_recon_home_and_settings():
 
 def test_api_key_connection_verification_mock():
     from recon.apps.cli.config_cli import test_api_key_connection
+
     is_valid, msg = test_api_key_connection("mock", "dummy_key")
     assert is_valid is True
 
@@ -38,7 +39,10 @@ def test_api_key_connection_verification_failure():
 
     from recon.apps.cli.config_cli import test_api_key_connection
 
-    with patch("recon.llm.provider.OpenAIProvider.complete", side_effect=Exception("401 Unauthorized: Invalid API key")):
+    with patch(
+        "recon.llm.provider.OpenAIProvider.complete",
+        side_effect=Exception("401 Unauthorized: Invalid API key"),
+    ):
         is_valid, msg = test_api_key_connection("openai", "sk-invalid-key")
         assert is_valid is False
         assert "401" in msg
@@ -59,11 +63,10 @@ def test_api_key_connection_verification_deepseek():
 
     from recon.apps.cli.config_cli import test_api_key_connection
 
-    with patch("recon.llm.provider.OpenAICompatibleProvider.complete", new_callable=AsyncMock) as mock_complete:
+    with patch(
+        "recon.llm.provider.OpenAICompatibleProvider.complete", new_callable=AsyncMock
+    ) as mock_complete:
         mock_complete.return_value = "ok"
         is_valid, msg = test_api_key_connection("deepseek", "sk-test-deepseek")
         assert is_valid is True
         assert "verified successfully" in msg
-
-
-
