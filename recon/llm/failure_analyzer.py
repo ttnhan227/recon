@@ -6,7 +6,7 @@ import re
 from recon.analysis.rca_engine import RootCauseAnalyzer
 from recon.common.logging import logger
 from recon.common.models import FailureAnalysis, Hypothesis, TestCase, TestResult
-from recon.llm.provider import LLMProvider, get_llm_provider
+from recon.llm.provider import LLMProvider, get_llm_provider, VectorStore
 
 SYSTEM_PROMPT = """You are an expert QA Engineer and Systems Debugger.
 Analyze the provided test failure data and produce a structured JSON response.
@@ -36,8 +36,9 @@ Do NOT return markdown formatting or extra text, only valid JSON.
 class AIFailureAnalyzer:
     """Enhances deterministic failure analysis with LLM reasoning."""
 
-    def __init__(self, provider: LLMProvider | None = None):
+    def __init__(self, provider: LLMProvider | None = None, vector_store: VectorStore | None = None):
         self.provider = provider or get_llm_provider()
+        self.vector_store = vector_store
 
     async def analyze_failure(
         self, result: TestResult, test: TestCase | None = None
@@ -79,6 +80,13 @@ class AIFailureAnalyzer:
             }
 
         prompt = f"Analyze this test execution failure:\n\n{json.dumps(evidence_summary, indent=2)}"
+        # Build RAG context if available
+        if self.vector_store is not None:
+            rag_context = await self.provider.retrieve_context(
+                f"Test failure analysis for test: {result.test_name}", top_k=3
+            )
+            if rag_context:
+                prompt = f"Retrieved context:\n{rag_context}\n\n---{chr(10)}{prompt}"
 
         try:
             raw_response = await self.provider.complete(prompt, system_prompt=SYSTEM_PROMPT)

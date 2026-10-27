@@ -157,6 +157,10 @@ class ReconSettings(BaseSettings):
     custom_model: str = Field(default="default", alias="RECON_LLM_MODEL")
     llm_temperature: float = 0.2
 
+    # RAG settings
+    rag_enabled: bool = Field(default=True, alias="RECON_RAG_ENABLED")
+    rag_top_k: int = Field(default=5, ge=1, le=20, alias="RECON_RAG_TOP_K")
+
 
 # Singleton instance
 settings = ReconSettings()

@@ -50,7 +50,100 @@ class LLMProvider(abc.ABC):
         """Sends prompt to the model and returns the string response."""
         pass
 
+    async def retrieve_context(self, query: str, top_k: int = 5) -> str:
+        """Retrieve relevant context from the knowledge base (RAG)."""
+        store = getattr(self, "_vector_store", None)
+        if store is None:
+            return ""
+        return store.query(query, top_k=top_k)
 
+
+class VectorStore:
+    """Simple in-memory vector store for RAG context retrieval."""
+
+    def __init__(self):
+        self.documents: list[str] = []
+        self.ids: list[str] = []
+
+    def add(self, documents: list[str], ids: list[str] | None = None):
+        """Add documents to the knowledge base."""
+        if ids is None:
+            ids = [f"doc-{i}" for i in range(len(documents))]
+        self.documents.extend(documents)
+        self.ids.extend(ids)
+
+    def query(self, query: str, top_k: int = 5) -> str:
+        """Simple keyword-based retrieval."""
+        if not self.documents:
+            return ""
+        scored = []
+        q_lower = query.lower()
+        for i, doc in enumerate(self.documents):
+            d_lower = doc.lower()
+            score = sum(1 for w in q_lower.split() if w in d_lower)
+            if score > 0:
+                scored.append((score, i))
+        if not scored:
+            return ""
+        scored.sort(key=lambda x: -x[0])
+        top_indices = [i for _, i in scored[:top_k]]
+        return "\\n\\n".join(self.documents[i] for i in top_indices)
+
+
+class KnowledgeBase:
+    """Knowledge base with default documentation for recon-qa RAG."""
+
+    # Default documents covering the project's architecture, API patterns, and LLM usage
+    DEFAULT_DOCS = [
+        "recon-qa discovers OpenAPI specifications from target applications to enumerate endpoints, parameters, and schemas. It supports HTTP and Playwright test execution for API and browser testing.",
+
+        "The LLM provider in recon-qa supports multiple providers: Gemini, OpenAI, Mistral, Anthropic, Ollama (local), and custom OpenAI-compatible APIs. Configuration is via environment variables (RECON_GEMINI_API_KEY, RECON_OPENAI_API_KEY, RECON_MISTRAL_API_KEY, RECON_ANTHROPIC_API_KEY, OLLAMA_BASE_URL, RECON_LLM_MODEL).",
+
+        "LLM test generation uses a system prompt that instructs the model to propose exploratory edge case tests including extreme boundary inputs, unexpected fields, and type confusion payloads. The output must be valid JSON conforming to a specific schema with test_cases array.",
+
+        "LLM failure analysis uses a system prompt that instructs the model to distinguish observed facts from hypotheses and suggested fixes. The system prompt emphasizes privacy and secure handling of test artifacts.",
+
+        "Tests are validated by assertions, not AI-generated conclusions. Recon-qa also includes a safety mechanism that validates all generated test cases before execution.",
+
+        "The test generator produces exploratory test cases with fields: name, category, method, target, body, expected_status. Categories include BOUNDARY, NEGATIVE, EXPLORATORY.",
+
+        "The failure analyzer produces structured JSON output with observed_facts, hypotheses, suggested_fix, and confidence_score.",
+
+        "recon-qa is published as a Python package on PyPI and is available at https://pypi.org/project/recon-qa/.",
+
+        "The tool uses a deterministic baseline for failure analysis via RootCauseAnalyzer, which parses test results and extracts observable failure evidence including failure categories, error messages, stack traces, console errors, and network errors.",
+    ]
+
+    def __init__(self, vector_store: VectorStore | None = None):
+        self.vector_store = vector_store or VectorStore()
+        self._initialize()
+
+    def _initialize(self):
+        """Add default knowledge base documents."""
+        self.vector_store.add(self.DEFAULT_DOCS)
+
+    def add(self, documents: list[str], ids: list[str] | None = None):
+        """Add custom documents to the knowledge base."""
+        self.vector_store.add(documents, ids)
+
+    def query(self, query: str, top_k: int = 5) -> str:
+        """Query the knowledge base."""
+        return self.vector_store.query(query, top_k=top_k)
+
+    def get_store(self) -> VectorStore:
+        """Get the underlying vector store."""
+        return self.vector_store
+        for i, doc in enumerate(self.documents):
+            d_lower = doc.lower()
+            # Count matching words (simple tf-like scoring)
+            score = sum(1 for w in q_lower.split() if w in d_lower)
+            if score > 0:
+                scored.append((score, i))
+        if not scored:
+            return ""
+        scored.sort(key=lambda x: -x[0])
+        top_indices = [i for _, i in scored[:top_k]]
+        return "\n\n".join(self.documents[i] for i in top_indices)
 async def _post_with_retry(
     client: Any,
     url: str,
@@ -499,6 +592,18 @@ class OpenAICompatibleProvider(LLMProvider):
             "temperature": settings.llm_temperature,
         }
 
+        context = ""
+        if settings.rag_enabled and settings.rag_top_k > 0:
+            # In-memory context retrieval: simple substring match over stored docs
+            store = getattr(self, "_vector_store", None)
+            if store is not None:
+                context = store.query(prompt, top_k=settings.rag_top_k)
+
+        if context:
+            payload["messages"].insert(
+                0, {"role": "system", "content": f"Context from knowledge base:\\n{context}\\n\\nUse the above context when relevant. If the context does not answer the question, ignore it and answer from your own knowledge."}
+            )
+
         async with httpx.AsyncClient(timeout=30.0) as client:
             try:
                 resp = await _post_with_retry(client, endpoint, headers=headers, json_data=payload)
@@ -506,6 +611,17 @@ class OpenAICompatibleProvider(LLMProvider):
                 return data["choices"][0]["message"]["content"] or ""
             except Exception as e:
                 raise LLMProviderError(_format_http_error("Compatible/OpenAI", e)) from e
+
+    def add_to_kb(self, documents: list[str], ids: list[str] | None = None):
+        """Add documents to the knowledge base for RAG. Initializes KB with defaults if empty."""
+        # Initialize knowledge base with default docs on first call
+        if not hasattr(self, "_kb"):
+            kb = KnowledgeBase()
+            self._kb = kb
+            self._vector_store = kb.get_store()
+        store = self._vector_store
+        if documents:
+            store.add(documents, ids or [f"doc-{i}" for i in range(len(documents))])
 
 
 def get_llm_provider(provider_name: str | None = None) -> LLMProvider:
