@@ -10,8 +10,8 @@ from recon.common.models import (
     TestStep,
     TestType,
 )
-from recon.demo_app.main import app
 from recon.orchestration.worker_pool import WorkerPool
+from tests.conftest import test_app as app
 
 
 @pytest.mark.asyncio

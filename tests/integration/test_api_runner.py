@@ -10,8 +10,8 @@ from recon.common.models import (
     TestStep,
     TestType,
 )
-from recon.demo_app.main import app
 from recon.execution.api.runner import APITestRunner
+from tests.conftest import test_app as app
 
 
 @pytest.mark.asyncio

@@ -248,3 +248,68 @@ def test_html_reporter_renders_console_and_stack_trace_evidence(tmp_path: Path):
     assert "Uncaught TypeError: Cannot read token of undefined" in content
     assert "Diagnostic Stack Trace" in content
     assert "Copy Stack Trace" in content
+
+
+def test_html_reporter_includes_developer_tools_and_accessibility(tmp_path: Path):
+    reporter = HTMLReporter(output_dir=tmp_path)
+    now = datetime.now(timezone.utc)
+    summary = RunSummary(
+        run_id="audit-run-tools",
+        target_url="http://localhost:8000",
+        started_at=now,
+        completed_at=now,
+        total=1,
+        passed=0,
+        failed=1,
+        errors=0,
+        exit_code=1,
+        duration_seconds=1.5,
+        failure_breakdown={"ApplicationError": 1},
+        category_breakdown={"ERROR_HANDLING": {"FAILED": 1}},
+    )
+
+    results = [
+        TestResult(
+            test_id="TEST-API-CURL",
+            test_name="Order Without Currency",
+            test_type=TestType.API,
+            category=TestCategory.ERROR_HANDLING,
+            status=TestStatus.FAILED,
+            duration_ms=150,
+            step_results=[
+                StepResult(
+                    step_name="POST /api/orders",
+                    status=TestStatus.FAILED,
+                    duration_ms=150,
+                    error_message="500 Internal Server Error",
+                    http_trace=HTTPTrace(
+                        request_method="POST",
+                        request_url="http://localhost:8000/api/orders",
+                        request_body={"item_id": "ITEM-100", "quantity": 1},
+                        response_status=500,
+                        response_body={"detail": "NullReferenceException"},
+                    ),
+                )
+            ],
+        )
+    ]
+
+    report_path = reporter.write_report(summary, results)
+    content = report_path.read_text(encoding="utf-8")
+    soup = BeautifulSoup(content, "html.parser")
+
+    # Developer productivity actions
+    assert soup.find("button", id="btnExpandFailed") is not None
+    assert soup.find("button", id="btnShortcuts") is not None
+    assert soup.find("button", id="btnClearSearch") is not None
+    assert soup.find("dialog", id="shortcutsModal") is not None
+    assert soup.find("div", id="toastNotification") is not None
+
+    # CSS media queries for accessibility & print
+    assert "@media (prefers-reduced-motion: reduce)" in content
+    assert "@media print" in content
+
+    # cURL and copy trace capabilities
+    assert "Copy cURL" in content
+    assert "Copy Trace" in content
+

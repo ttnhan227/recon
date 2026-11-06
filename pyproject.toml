@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "recon-qa"
-version = "0.3.0"
+version = "0.3.1"
 description = "OpenAPI and browser test generation with optional LLM-assisted failure analysis"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -69,9 +69,6 @@ qa-agent = "recon.apps.cli.main:app"
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["recon*"]
-
-[tool.setuptools.package-data]
-"recon.demo_app" = ["static/*"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

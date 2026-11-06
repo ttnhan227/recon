@@ -15,7 +15,7 @@ from recon.common.models import (
 )
 from recon.common.security import is_safe_target_url
 from recon.discovery.models import DiscoveredApplication
-from recon.llm.provider import LLMProvider, get_llm_provider, VectorStore
+from recon.llm.provider import LLMProvider, VectorStore, get_llm_provider
 
 SYSTEM_PROMPT = """You are an expert Security and QA Engineer.
 Given the application's discovered endpoints and parameters, propose 2-4 high-value exploratory edge case test cases.

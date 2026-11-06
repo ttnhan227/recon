@@ -1,10 +1,10 @@
 import httpx
 import pytest
 
-from recon.demo_app.main import app
 from recon.discovery.openapi import OpenAPIParser
 from recon.orchestration.orchestrator import TestOrchestrator
 from recon.planning.generator import TestSuiteGenerator
+from tests.conftest import test_app as app
 
 
 @pytest.mark.asyncio

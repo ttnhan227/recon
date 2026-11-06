@@ -6,7 +6,7 @@ import re
 from recon.analysis.rca_engine import RootCauseAnalyzer
 from recon.common.logging import logger
 from recon.common.models import FailureAnalysis, Hypothesis, TestCase, TestResult
-from recon.llm.provider import LLMProvider, get_llm_provider, VectorStore
+from recon.llm.provider import LLMProvider, VectorStore, get_llm_provider
 
 SYSTEM_PROMPT = """You are an expert QA Engineer and Systems Debugger.
 Analyze the provided test failure data and produce a structured JSON response.

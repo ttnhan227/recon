@@ -315,7 +315,12 @@ def test_command(
 
         async def on_progress(test: TestCase, res: TestResult):
             status_color = "green" if res.status == TestStatus.PASSED else "red"
-            fail_msg = f" - {res.failure_evidence.message}" if res.failure_evidence else ""
+            fail_msg = ""
+            if res.failure_evidence and res.failure_evidence.message:
+                first_line = res.failure_evidence.message.strip().split("\n")[0]
+                if len(first_line) > 80:
+                    first_line = first_line[:77] + "..."
+                fail_msg = f" [dim]- {first_line}[/dim]"
             console.print(
                 f" [{status_color}]{res.status.value:<6}[/{status_color}] [bold]{res.test_id}[/bold] {res.test_name} ({res.duration_ms:.0f}ms){fail_msg}"
             )
@@ -336,6 +341,9 @@ def test_command(
         pass_rate = round((summary.passed / summary.total * 100) if summary.total > 0 else 0, 1)
         summary_panel_color = "green" if summary.failed == 0 and summary.errors == 0 else "red"
 
+        report_file_path = (actual_report_dir / f"run-{summary.run_id}" / "report.html").resolve()
+        latest_file_path = (actual_report_dir / "latest.html").resolve()
+
         console.print()
         console.print(
             Panel(
@@ -345,8 +353,8 @@ def test_command(
                 f"  Failed      : [bold red]{summary.failed + summary.errors}[/bold red]\n"
                 f"  Pass Rate   : [bold {summary_panel_color}]{pass_rate}%[/bold {summary_panel_color}]\n"
                 f"  Duration    : {summary.duration_seconds:.2f}s\n"
-                f"  HTML Report : [cyan]{actual_report_dir}/run-{summary.run_id}/report.html[/cyan]\n"
-                f"  Latest Link : [cyan]{actual_report_dir}/latest.html[/cyan]",
+                f"  HTML Report : [cyan][link={report_file_path.as_uri()}]{report_file_path}[/link][/cyan]\n"
+                f"  Latest Link : [cyan][link={latest_file_path.as_uri()}]{latest_file_path}[/link][/cyan]",
                 title="[bold]Recon Test Run Completed[/bold]",
                 border_style=summary_panel_color,
             )
@@ -558,7 +566,8 @@ def report_command(
                     break
 
     if target_html and target_html.exists():
-        console.print(f"[green]Report available at: [bold]{target_html.resolve()}[/bold][/green]")
+        resolved_path = target_html.resolve()
+        console.print(f"[green]Report available at: [bold][link={resolved_path.as_uri()}]{resolved_path}[/link][/bold][/green]")
         import webbrowser
 
         try:
@@ -580,152 +589,6 @@ def doctor_command(
     """Runs system diagnostics to verify dependencies, browsers, DB, and network reachability."""
     healthy = asyncio.run(run_doctor(target_url=target))
     raise typer.Exit(code=0 if healthy else 1)
-
-
-@app.command("serve-demo", hidden=True)
-def serve_demo_command(
-    port: Annotated[int, typer.Option("--port", "-p", help="Port to listen on")] = 8000,
-    host: Annotated[str, typer.Option("--host", "-h", help="Host interface")] = "127.0.0.1",
-):
-    """Starts the built-in vulnerable Demo Target Application for reproducible testing."""
-    import uvicorn
-
-    console.print(
-        f"[bold green]Starting Recon Demo Target Application at http://{host}:{port}[/bold green]"
-    )
-    console.print(f"[dim]OpenAPI Docs: http://{host}:{port}/docs[/dim]")
-    console.print(f"[dim]Web Interface: http://{host}:{port}/[/dim]\n")
-    uvicorn.run("recon.demo_app.main:app", host=host, port=port, log_level="info")
-
-
-@app.command("demo")
-def demo_command(
-    port: Annotated[
-        int, typer.Option("--port", "-p", help="Local port for the temporary demo application")
-    ] = 8765,
-    browser: Annotated[
-        bool, typer.Option("--browser", "-b", help="Also exercise browser discovery and checks")
-    ] = False,
-    report_dir: Annotated[
-        Optional[Path], typer.Option("--report-dir", "-r", help="Directory for demo reports")
-    ] = None,
-):
-    """Runs the intentionally broken local demo and produces a sample HTML report."""
-    import subprocess
-    import sys
-    import time
-
-    import httpx
-
-    target = f"http://127.0.0.1:{port}"
-    actual_report_dir = (report_dir or (settings.reports_dir / get_project_slug(target))).resolve()
-    actual_report_dir.mkdir(parents=True, exist_ok=True)
-    latest_report = actual_report_dir / "latest.html"
-    previous_report_mtime = latest_report.stat().st_mtime_ns if latest_report.exists() else None
-
-    console.print(
-        Panel(
-            "Recon will start a local application containing known defects, test it, "
-            "and generate an HTML report. No API key or external target is required.",
-            title="[bold cyan]Recon QA local demo[/bold cyan]",
-            border_style="cyan",
-        )
-    )
-
-    server = subprocess.Popen(
-        [
-            sys.executable,
-            "-m",
-            "uvicorn",
-            "recon.demo_app.main:app",
-            "--host",
-            "127.0.0.1",
-            "--port",
-            str(port),
-            "--log-level",
-            "warning",
-        ],
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.STDOUT,
-    )
-
-    try:
-        deadline = time.monotonic() + 30
-        while time.monotonic() < deadline:
-            if server.poll() is not None:
-                console.print(
-                    f"[red]The demo application could not start on port {port}. "
-                    "Choose another port with --port.[/red]"
-                )
-                raise typer.Exit(code=1)
-            try:
-                response = httpx.get(f"{target}/api/health", timeout=0.5)
-                if response.status_code == 200:
-                    break
-            except Exception:
-                pass
-            time.sleep(0.2)
-        else:
-            console.print("[red]Timed out while starting the local demo application.[/red]")
-            raise typer.Exit(code=1)
-
-        command = [
-            sys.executable,
-            "-m",
-            "recon.apps.cli.main",
-            "test",
-            target,
-            "--no-ai",
-            "--report-dir",
-            str(actual_report_dir),
-        ]
-        if browser:
-            command.append("--browser")
-
-        completed = subprocess.run(command, check=False)
-        report_was_created = latest_report.exists() and (
-            previous_report_mtime is None
-            or latest_report.stat().st_mtime_ns > previous_report_mtime
-        )
-        if completed.returncode not in (0, 1) or not report_was_created:
-            console.print("[red]The demo run did not produce a report.[/red]")
-            raise typer.Exit(code=1)
-
-        report_command_hint = "recon report"
-        if report_dir:
-            report_command_hint += f' --report-dir "{actual_report_dir}"'
-
-        console.print(
-            Panel(
-                f"[bold green]Demo complete.[/bold green] Recon intentionally found defects.\n"
-                f"HTML report: [bold]{latest_report}[/bold]\n\n"
-                f"Run [cyan]{report_command_hint}[/cyan] to open this report.",
-                border_style="green",
-            )
-        )
-    finally:
-        if server.poll() is None:
-            try:
-                import os
-
-                if os.name == "nt":
-                    subprocess.run(
-                        ["taskkill", "/F", "/T", "/PID", str(server.pid)],
-                        check=False,
-                        stdout=subprocess.DEVNULL,
-                        stderr=subprocess.DEVNULL,
-                    )
-            except Exception:
-                pass
-            server.terminate()
-            try:
-                server.wait(timeout=5)
-            except subprocess.TimeoutExpired:
-                server.kill()
-                try:
-                    server.wait(timeout=5)
-                except Exception:
-                    pass
 
 
 @app.command("serve-api", hidden=True)

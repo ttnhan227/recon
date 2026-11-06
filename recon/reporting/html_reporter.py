@@ -100,54 +100,54 @@ class HTMLReporter:
             --border: #cbd5e1;
             --border-subtle: #e2e8f0;
             --text: #0f172a;
-            --text-muted: #475569;
-            --text-dim: #64748b;
-            --accent: #6366f1;
-            --accent-hover: #4f46e5;
-            --accent-glow: rgba(99, 102, 241, 0.2);
-            --pass: #059669;
-            --pass-bg: rgba(5, 150, 105, 0.12);
-            --pass-border: #10b981;
-            --fail: #dc2626;
-            --fail-bg: rgba(220, 38, 38, 0.12);
-            --fail-border: #ef4444;
-            --warn: #d97706;
-            --warn-bg: rgba(217, 119, 6, 0.12);
+            --text-muted: #334155;
+            --text-dim: #475569;
+            --accent: #2563eb;
+            --accent-hover: #1d4ed8;
+            --accent-glow: rgba(37, 99, 235, 0.15);
+            --pass: #047857;
+            --pass-bg: rgba(4, 120, 87, 0.1);
+            --pass-border: #059669;
+            --fail: #b91c1c;
+            --fail-bg: rgba(185, 28, 28, 0.1);
+            --fail-border: #dc2626;
+            --warn: #b45309;
+            --warn-bg: rgba(180, 83, 9, 0.1);
             --info: #0284c7;
-            --info-bg: rgba(2, 132, 199, 0.12);
+            --info-bg: rgba(2, 132, 199, 0.1);
             --code-bg: #f1f5f9;
             --code-text: #0f172a;
-            --radius-sm: 0.375rem;
-            --radius-md: 0.5rem;
-            --radius-lg: 0.75rem;
+            --radius-sm: 0.25rem;
+            --radius-md: 0.375rem;
+            --radius-lg: 0.5rem;
             --radius-full: 9999px;
-            --font-sans: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
             --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
         }}
 
         html.dark {{
             --bg: #0b0f19;
             --surface: #111827;
-            --surface-card: #161f30;
-            --surface-hover: #1e293b;
+            --surface-card: #182234;
+            --surface-hover: #223048;
             --border: #2e3a51;
             --border-subtle: #1f293d;
             --text: #f9fafb;
-            --text-muted: #94a3b8;
-            --text-dim: #64748b;
-            --accent: #6366f1;
-            --accent-hover: #4f46e5;
-            --accent-glow: rgba(99, 102, 241, 0.25);
+            --text-muted: #cbd5e1;
+            --text-dim: #94a3b8;
+            --accent: #3b82f6;
+            --accent-hover: #2563eb;
+            --accent-glow: rgba(59, 130, 246, 0.2);
             --pass: #10b981;
-            --pass-bg: rgba(16, 185, 129, 0.15);
+            --pass-bg: rgba(16, 185, 129, 0.14);
             --pass-border: #059669;
             --fail: #ef4444;
-            --fail-bg: rgba(239, 68, 68, 0.15);
+            --fail-bg: rgba(239, 68, 68, 0.14);
             --fail-border: #dc2626;
             --warn: #f59e0b;
-            --warn-bg: rgba(245, 158, 11, 0.15);
+            --warn-bg: rgba(245, 158, 11, 0.14);
             --info: #38bdf8;
-            --info-bg: rgba(56, 189, 248, 0.15);
+            --info-bg: rgba(56, 189, 248, 0.14);
             --code-bg: #090d16;
             --code-text: #e2e8f0;
         }}
@@ -170,27 +170,28 @@ class HTMLReporter:
             transition: background-color 0.2s ease, color 0.2s ease;
         }}
 
-        /* Skip Link for Accessibility */
+        /* Skip Link for Keyboard Accessibility */
         .skip-link {{
             position: absolute;
-            top: -50px;
+            top: -60px;
             left: 1rem;
-            background: var(--accent);
-            color: #ffffff;
+            background: var(--text);
+            color: var(--bg);
             padding: 0.6rem 1.2rem;
             z-index: 1000;
             border-radius: var(--radius-md);
             font-weight: 700;
             text-decoration: none;
             transition: top 0.2s ease-in-out;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
         }}
         .skip-link:focus {{
             top: 1rem;
-            outline: 3px solid #ffffff;
+            outline: 3px solid var(--accent);
             outline-offset: 2px;
         }}
 
-        /* Focus Visible Standards */
+        /* High-Contrast Focus Visible Ring */
         :focus-visible {{
             outline: 2px solid var(--accent);
             outline-offset: 2px;
@@ -219,14 +220,14 @@ class HTMLReporter:
             gap: 1rem;
         }}
         .badge-logo {{
-            background: linear-gradient(135deg, #6366f1 0%, #a855f7 100%);
-            color: white;
-            font-weight: 900;
-            font-size: 1.2rem;
+            background: var(--surface-card);
+            border: 1px solid var(--border);
+            color: var(--text);
+            font-weight: 800;
+            font-size: 0.95rem;
             letter-spacing: 0.08em;
             padding: 0.4rem 0.85rem;
             border-radius: var(--radius-md);
-            box-shadow: 0 4px 12px var(--accent-glow);
         }}
         .title-block h1 {{
             font-size: 1.65rem;
@@ -275,14 +276,15 @@ class HTMLReporter:
             display: inline-flex;
             align-items: center;
             gap: 0.4rem;
-            transition: all 0.15s ease;
+            transition: background 0.15s ease, border-color 0.15s ease;
             min-height: 40px;
         }}
         .btn-theme:hover {{
             background: var(--surface-hover);
+            border-color: var(--text-dim);
         }}
 
-        /* Visual Progress Bar */
+        /* Progress Bar */
         .progress-wrapper {{
             margin-bottom: 2rem;
         }}
@@ -332,12 +334,23 @@ class HTMLReporter:
         }}
         .kbd-hint {{
             font-size: 0.75rem;
-            color: var(--text-dim);
+            color: var(--text-muted);
             font-family: var(--font-mono);
             background: var(--surface-card);
-            padding: 0.2rem 0.5rem;
+            padding: 0.25rem 0.6rem;
             border-radius: var(--radius-sm);
             border: 1px solid var(--border);
+        }}
+        .kbd-pill {{
+            display: inline-block;
+            padding: 0.1rem 0.35rem;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 3px;
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            color: var(--text);
+            font-weight: 700;
         }}
 
         /* Metric Grid */
@@ -350,15 +363,15 @@ class HTMLReporter:
         .card {{
             background: var(--surface);
             border: 1px solid var(--border);
-            border-radius: var(--radius-lg);
+            border-radius: var(--radius-md);
             padding: 1.25rem;
             display: flex;
             flex-direction: column;
             justify-content: space-between;
-            transition: transform 0.15s ease, border-color 0.15s ease;
+            transition: border-color 0.15s ease;
         }}
         .card:hover {{
-            border-color: #64748b;
+            border-color: var(--text-dim);
         }}
         .card-label {{
             font-size: 0.8rem;
@@ -392,7 +405,7 @@ class HTMLReporter:
         .breakdown-card {{
             background: var(--surface);
             border: 1px solid var(--border);
-            border-radius: var(--radius-lg);
+            border-radius: var(--radius-md);
             padding: 1.25rem;
         }}
         .breakdown-card h3 {{
@@ -417,7 +430,7 @@ class HTMLReporter:
             padding: 0.6rem 0.85rem;
             background: var(--surface-card);
             border: 1px solid var(--border-subtle);
-            border-radius: var(--radius-md);
+            border-radius: var(--radius-sm);
             font-size: 0.875rem;
         }}
         .tax-item.zero-state {{
@@ -457,7 +470,7 @@ class HTMLReporter:
             padding: 0.85rem 1rem;
             background: var(--surface);
             border: 1px solid var(--border);
-            border-radius: var(--radius-lg);
+            border-radius: var(--radius-md);
         }}
         .filter-controls {{
             display: flex;
@@ -470,7 +483,7 @@ class HTMLReporter:
             border: 1px solid var(--border);
             color: var(--text-muted);
             padding: 0.5rem 0.95rem;
-            border-radius: var(--radius-md);
+            border-radius: var(--radius-sm);
             cursor: pointer;
             font-size: 0.875rem;
             font-weight: 600;
@@ -483,13 +496,12 @@ class HTMLReporter:
         .btn-filter:hover {{
             background: var(--surface-hover);
             color: var(--text);
-            border-color: #64748b;
+            border-color: var(--text-dim);
         }}
         .btn-filter[aria-pressed="true"], .btn-filter.active {{
             background: var(--accent);
             color: #ffffff;
             border-color: var(--accent);
-            box-shadow: 0 2px 8px var(--accent-glow);
         }}
         .batch-actions {{
             display: flex;
@@ -502,23 +514,27 @@ class HTMLReporter:
             border: 1px solid var(--border);
             color: var(--text-muted);
             padding: 0.5rem 0.85rem;
-            border-radius: var(--radius-md);
+            border-radius: var(--radius-sm);
             cursor: pointer;
             font-size: 0.825rem;
             font-weight: 600;
             min-height: 40px;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
             transition: all 0.15s ease;
         }}
         .btn-action:hover {{
             background: var(--surface-hover);
             color: var(--text);
+            border-color: var(--text-dim);
         }}
         .sort-select {{
             background: var(--surface-card);
             border: 1px solid var(--border);
             color: var(--text);
             padding: 0.5rem 0.85rem;
-            border-radius: var(--radius-md);
+            border-radius: var(--radius-sm);
             font-size: 0.825rem;
             font-weight: 600;
             min-height: 40px;
@@ -527,14 +543,16 @@ class HTMLReporter:
         .search-wrapper {{
             position: relative;
             flex-grow: 1;
-            max-width: 320px;
+            max-width: 340px;
+            display: flex;
+            align-items: center;
         }}
         .search-box {{
             background: var(--surface-card);
             border: 1px solid var(--border);
             color: var(--text);
-            padding: 0.55rem 0.95rem;
-            border-radius: var(--radius-md);
+            padding: 0.55rem 2rem 0.55rem 0.95rem;
+            border-radius: var(--radius-sm);
             font-size: 0.875rem;
             width: 100%;
             min-height: 40px;
@@ -545,6 +563,21 @@ class HTMLReporter:
         }}
         .search-box::placeholder {{
             color: var(--text-dim);
+        }}
+        .btn-clear-search {{
+            position: absolute;
+            right: 0.5rem;
+            background: transparent;
+            border: none;
+            color: var(--text-dim);
+            cursor: pointer;
+            font-size: 1.1rem;
+            line-height: 1;
+            padding: 0.25rem;
+            display: none;
+        }}
+        .btn-clear-search:hover {{
+            color: var(--text);
         }}
 
         /* Test List */
@@ -557,15 +590,15 @@ class HTMLReporter:
         .test-row {{
             background: var(--surface);
             border: 1px solid var(--border);
-            border-radius: var(--radius-lg);
+            border-radius: var(--radius-md);
             overflow: hidden;
             transition: border-color 0.15s ease;
         }}
         .test-row.failed {{
-            border-left: 5px solid var(--fail);
+            border-left: 4px solid var(--fail);
         }}
         .test-row.passed {{
-            border-left: 5px solid var(--pass);
+            border-left: 4px solid var(--pass);
         }}
         .test-header-btn {{
             appearance: none;
@@ -576,7 +609,7 @@ class HTMLReporter:
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding: 1.1rem 1.25rem;
+            padding: 1rem 1.25rem;
             cursor: pointer;
             color: inherit;
             font-family: inherit;
@@ -595,21 +628,21 @@ class HTMLReporter:
             font-family: var(--font-mono);
             font-size: 0.8rem;
             background: var(--surface-card);
-            padding: 0.25rem 0.5rem;
+            padding: 0.2rem 0.5rem;
             border-radius: var(--radius-sm);
             border: 1px solid var(--border-subtle);
             color: var(--text);
-            font-weight: 600;
+            font-weight: 700;
         }}
         .test-name {{
             font-weight: 700;
-            font-size: 0.975rem;
+            font-size: 0.95rem;
         }}
         .status-pill {{
             font-size: 0.75rem;
             font-weight: 800;
             letter-spacing: 0.04em;
-            padding: 0.25rem 0.65rem;
+            padding: 0.2rem 0.6rem;
             border-radius: var(--radius-full);
             text-transform: uppercase;
         }}
@@ -646,12 +679,26 @@ class HTMLReporter:
             white-space: nowrap;
         }}
         .toggle-icon {{
-            font-size: 0.8rem;
+            font-size: 0.75rem;
             transition: transform 0.2s ease;
             display: inline-block;
+            color: var(--text-dim);
         }}
         .test-header-btn[aria-expanded="true"] .toggle-icon {{
             transform: rotate(180deg);
+        }}
+
+        /* Failure Preview in Header */
+        .failure-preview {{
+            display: block;
+            width: 100%;
+            font-size: 0.8rem;
+            color: var(--fail);
+            font-family: var(--font-mono);
+            margin-top: 0.25rem;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }}
 
         /* Test Body Region */
@@ -667,8 +714,9 @@ class HTMLReporter:
         /* RCA Box */
         .rca-box {{
             background: var(--surface);
-            border: 1px solid var(--accent);
-            border-radius: var(--radius-md);
+            border: 1px solid var(--border);
+            border-left: 4px solid var(--accent);
+            border-radius: var(--radius-sm);
             padding: 1.15rem;
             margin-bottom: 1.25rem;
         }}
@@ -683,7 +731,7 @@ class HTMLReporter:
         .rca-title {{
             font-weight: 800;
             font-size: 0.95rem;
-            color: var(--accent);
+            color: var(--text);
             display: flex;
             align-items: center;
             gap: 0.4rem;
@@ -750,7 +798,7 @@ class HTMLReporter:
         .btn-copy:hover {{
             background: var(--surface-hover);
             color: var(--text);
-            border-color: #64748b;
+            border-color: var(--text-dim);
         }}
 
         /* Steps & Diagnostic Logs */
@@ -773,7 +821,7 @@ class HTMLReporter:
         .step-item {{
             background: var(--surface);
             border: 1px solid var(--border);
-            border-radius: var(--radius-md);
+            border-radius: var(--radius-sm);
             padding: 0.85rem 1rem;
         }}
         .step-header {{
@@ -810,6 +858,12 @@ class HTMLReporter:
             border-radius: var(--radius-sm) var(--radius-sm) 0 0;
             font-size: 0.8rem;
             color: var(--text-muted);
+            gap: 0.5rem;
+            flex-wrap: wrap;
+        }}
+        .trace-actions {{
+            display: flex;
+            gap: 0.4rem;
         }}
         pre {{
             background: var(--code-bg);
@@ -858,7 +912,7 @@ class HTMLReporter:
         details.diag-details {{
             background: var(--surface);
             border: 1px solid var(--border);
-            border-radius: var(--radius-md);
+            border-radius: var(--radius-sm);
             padding: 0.75rem;
             margin-top: 0.75rem;
         }}
@@ -876,7 +930,7 @@ class HTMLReporter:
         .screenshot-card {{
             background: var(--surface);
             border: 1px solid var(--border);
-            border-radius: var(--radius-md);
+            border-radius: var(--radius-sm);
             padding: 0.75rem;
             display: inline-block;
             max-width: 100%;
@@ -912,24 +966,25 @@ class HTMLReporter:
         /* Modal Dialog */
         .modal-dialog {{
             border: 1px solid var(--border);
-            border-radius: var(--radius-lg);
+            border-radius: var(--radius-md);
             background: var(--surface);
             color: var(--text);
             padding: 1.5rem;
             max-width: 90vw;
             max-height: 90vh;
             margin: auto;
-            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.75);
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5);
         }}
         .modal-dialog::backdrop {{
-            background: rgba(0, 0, 0, 0.8);
-            backdrop-filter: blur(4px);
+            background: rgba(0, 0, 0, 0.75);
+            backdrop-filter: blur(2px);
         }}
         .modal-header {{
             display: flex;
             justify-content: space-between;
             align-items: center;
             margin-bottom: 1rem;
+            gap: 1rem;
         }}
         .modal-title {{
             font-size: 1.1rem;
@@ -940,16 +995,72 @@ class HTMLReporter:
             border: 1px solid var(--border);
             color: var(--text);
             padding: 0.4rem 0.8rem;
-            border-radius: var(--radius-md);
+            border-radius: var(--radius-sm);
             cursor: pointer;
             font-weight: 700;
+            font-size: 0.85rem;
+        }}
+        .modal-close-btn:hover {{
+            background: var(--surface-hover);
         }}
         .modal-body img {{
             max-width: 100%;
             max-height: 75vh;
-            border-radius: var(--radius-md);
+            border-radius: var(--radius-sm);
             border: 1px solid var(--border);
             object-fit: contain;
+        }}
+
+        /* Shortcuts Table in Modal */
+        .shortcuts-grid {{
+            display: grid;
+            grid-template-columns: auto 1fr;
+            gap: 0.6rem 1.25rem;
+            align-items: center;
+            font-size: 0.875rem;
+            margin-top: 1rem;
+            padding: 0.5rem 0;
+        }}
+        .shortcuts-grid kbd {{
+            background: var(--surface-card);
+            border: 1px solid var(--border);
+            padding: 0.2rem 0.5rem;
+            border-radius: 4px;
+            font-family: var(--font-mono);
+            font-weight: 700;
+            text-align: center;
+        }}
+
+        /* Empty State */
+        .empty-state {{
+            text-align: center;
+            padding: 3rem 1.5rem;
+            color: var(--text-muted);
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 1rem;
+        }}
+
+        /* Toast Feedback */
+        .toast-notification {{
+            position: fixed;
+            bottom: 1.5rem;
+            right: 1.5rem;
+            background: var(--surface);
+            color: var(--text);
+            border: 1px solid var(--pass-border);
+            border-left: 4px solid var(--pass);
+            padding: 0.75rem 1.25rem;
+            border-radius: var(--radius-sm);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3);
+            font-size: 0.875rem;
+            font-weight: 600;
+            z-index: 2000;
+            display: none;
         }}
 
         /* Footer */
@@ -974,6 +1085,16 @@ class HTMLReporter:
             clip: rect(0, 0, 0, 0);
             white-space: nowrap;
             border: 0;
+        }}
+
+        /* Reduced Motion */
+        @media (prefers-reduced-motion: reduce) {{
+            *, *::before, *::after {{
+                animation-duration: 0.01ms !important;
+                animation-iteration-count: 1 !important;
+                transition-duration: 0.01ms !important;
+                scroll-behavior: auto !important;
+            }}
         }}
 
         /* Responsive Breakpoints */
@@ -1001,7 +1122,7 @@ class HTMLReporter:
             }}
             .filter-controls, .batch-actions {{
                 width: 100%;
-                justify-content: space-between;
+                justify-content: flex-start;
             }}
             .search-wrapper {{
                 max-width: 100%;
@@ -1030,7 +1151,7 @@ class HTMLReporter:
                 color: #000000 !important;
                 padding: 0 !important;
             }}
-            .skip-link, .controls, .header-actions, .modal-dialog, .btn-copy, .btn-action, .btn-theme {{
+            .skip-link, .controls, .header-actions, .modal-dialog, .btn-copy, .btn-action, .btn-theme, .toast-notification {{
                 display: none !important;
             }}
             .card, .breakdown-card, .test-row, .step-item {{
@@ -1135,7 +1256,7 @@ class HTMLReporter:
         <section aria-labelledby="heading-results">
             <div class="section-header">
                 <h2 id="heading-results">Test Execution Results</h2>
-                <div class="kbd-hint" aria-hidden="true">Shortcuts: [/] search &bull; [e] expand all &bull; [c] collapse all</div>
+                <div class="kbd-hint" aria-hidden="true">Shortcuts: [/] search &bull; [e] expand all &bull; [c] collapse all &bull; [?] help</div>
             </div>
 
             <!-- Controls -->
@@ -1149,6 +1270,8 @@ class HTMLReporter:
                 <div class="batch-actions" role="group" aria-label="Batch display and sort actions">
                     <button type="button" class="btn-action" id="btnExpandAll" onclick="toggleAllTests(true)">Expand All</button>
                     <button type="button" class="btn-action" id="btnCollapseAll" onclick="toggleAllTests(false)">Collapse All</button>
+                    <button type="button" class="btn-action" id="btnExpandFailed" onclick="expandFailedOnly()">Expand Failed Only</button>
+                    <button type="button" class="btn-action" id="btnShortcuts" onclick="openShortcutsModal()" aria-label="Show keyboard shortcuts">Shortcuts <kbd class="kbd-pill">?</kbd></button>
 
                     <label for="sortSelect" class="sr-only">Sort tests</label>
                     <select id="sortSelect" class="sort-select" onchange="setSort(this.value)" aria-label="Sort tests">
@@ -1162,7 +1285,8 @@ class HTMLReporter:
 
                 <div class="search-wrapper">
                     <label for="searchInput" class="sr-only">Filter tests by name or ID</label>
-                    <input type="search" id="searchInput" class="search-box" placeholder="Filter tests (Press '/' to focus)..." oninput="filterTests()" autocomplete="off">
+                    <input type="search" id="searchInput" class="search-box" placeholder="Filter tests (Press '/' to focus)..." oninput="onSearchInput()" autocomplete="off">
+                    <button type="button" class="btn-clear-search" id="btnClearSearch" onclick="clearSearch()" aria-label="Clear search input">&times;</button>
                 </div>
             </div>
 
@@ -1178,21 +1302,44 @@ class HTMLReporter:
     <dialog id="screenshotModal" class="modal-dialog" aria-labelledby="modalTitle">
         <div class="modal-header">
             <h3 id="modalTitle" class="modal-title">Failure Evidence Screenshot</h3>
-            <button type="button" class="modal-close-btn" onclick="closeScreenshotModal()" aria-label="Close dialog">&times; Close</button>
+            <button type="button" class="modal-close-btn" onclick="closeScreenshotModal()" aria-label="Close screenshot modal">&times; Close</button>
         </div>
         <div class="modal-body" style="text-align: center;">
             <img id="modalImg" src="" alt="Enlarged failure evidence screenshot">
         </div>
     </dialog>
 
+    <!-- Keyboard Shortcuts Help Modal Dialog -->
+    <dialog id="shortcutsModal" class="modal-dialog" aria-labelledby="shortcutsTitle">
+        <div class="modal-header">
+            <h3 id="shortcutsTitle" class="modal-title">Keyboard Shortcuts</h3>
+            <button type="button" class="modal-close-btn" onclick="closeShortcutsModal()" aria-label="Close shortcuts dialog">&times; Close</button>
+        </div>
+        <div class="shortcuts-grid">
+            <kbd>/</kbd><span>Focus search filter</span>
+            <kbd>e</kbd><span>Expand all tests</span>
+            <kbd>c</kbd><span>Collapse all tests</span>
+            <kbd>f</kbd><span>Filter failed tests</span>
+            <kbd>p</kbd><span>Filter passed tests</span>
+            <kbd>a</kbd><span>Show all tests</span>
+            <kbd>t</kbd><span>Toggle dark / light theme</span>
+            <kbd>?</kbd><span>Open keyboard shortcuts help</span>
+            <kbd>Esc</kbd><span>Close dialogs or clear search filter</span>
+        </div>
+    </dialog>
+
+    <!-- Accessible Notification Toast -->
+    <div id="toastNotification" class="toast-notification" role="status" aria-live="polite"></div>
+
     <footer class="report-footer" role="contentinfo">
-        <p>Generated by <strong>Recon Autonomous QA Engine</strong> &bull; Version 0.1.0 &bull; Run <code>recon --help</code> for options</p>
+        <p>Generated by <strong>Recon Autonomous QA Engine</strong> &bull; Version 0.3.1 &bull; Run <code>recon --help</code> for options</p>
     </footer>
 
     <script>
         const rawTests = {tests_data_script};
         let currentFilter = 'ALL';
         let currentSort = 'default';
+        let searchDebounceTimer = null;
 
         function toggleTheme() {{
             const isDark = document.documentElement.classList.toggle('dark');
@@ -1212,25 +1359,80 @@ class HTMLReporter:
         // Global keyboard shortcuts
         document.addEventListener('keydown', (e) => {{
             const activeTag = document.activeElement ? document.activeElement.tagName.toLowerCase() : '';
-            if (activeTag === 'input' || activeTag === 'textarea' || activeTag === 'select') {{
-                if (e.key === 'Escape' && document.activeElement) {{
-                    document.activeElement.blur();
+            const isInput = activeTag === 'input' || activeTag === 'textarea' || activeTag === 'select';
+
+            if (e.key === 'Escape') {{
+                const scModal = document.getElementById('screenshotModal');
+                const shModal = document.getElementById('shortcutsModal');
+                if (scModal && scModal.open) {{
+                    scModal.close();
+                    return;
                 }}
-                return;
+                if (shModal && shModal.open) {{
+                    shModal.close();
+                    return;
+                }}
+                if (isInput) {{
+                    document.activeElement.blur();
+                    clearSearch();
+                    return;
+                }}
             }}
+
+            if (isInput) return;
 
             if (e.key === '/') {{
                 e.preventDefault();
                 const search = document.getElementById('searchInput');
-                if (search) search.focus();
+                if (search) {{
+                    search.focus();
+                    search.select();
+                }}
             }} else if (e.key === 'e' || e.key === 'E') {{
                 e.preventDefault();
                 toggleAllTests(true);
             }} else if (e.key === 'c' || e.key === 'C') {{
                 e.preventDefault();
                 toggleAllTests(false);
+            }} else if (e.key === 'f' || e.key === 'F') {{
+                e.preventDefault();
+                setFilter('FAILED');
+            }} else if (e.key === 'p' || e.key === 'P') {{
+                e.preventDefault();
+                setFilter('PASSED');
+            }} else if (e.key === 'a' || e.key === 'A') {{
+                e.preventDefault();
+                setFilter('ALL');
+            }} else if (e.key === 't' || e.key === 'T') {{
+                e.preventDefault();
+                toggleTheme();
+            }} else if (e.key === '?') {{
+                e.preventDefault();
+                openShortcutsModal();
             }}
         }});
+
+        function onSearchInput() {{
+            const searchInput = document.getElementById('searchInput');
+            const clearBtn = document.getElementById('btnClearSearch');
+            if (clearBtn) {{
+                clearBtn.style.display = searchInput.value ? 'block' : 'none';
+            }}
+            renderTests();
+        }}
+
+        function clearSearch() {{
+            const searchInput = document.getElementById('searchInput');
+            const clearBtn = document.getElementById('btnClearSearch');
+            if (searchInput) {{
+                searchInput.value = '';
+                searchInput.focus();
+            }}
+            if (clearBtn) {{
+                clearBtn.style.display = 'none';
+            }}
+            renderTests();
+        }}
 
         function setSort(sortValue) {{
             currentSort = sortValue;
@@ -1283,14 +1485,29 @@ class HTMLReporter:
             }}
 
             if (sorted.length === 0) {{
-                listEl.innerHTML = '<div style="text-align: center; padding: 3rem; color: var(--text-muted); background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg);">No tests match the current filter or search criteria.</div>';
+                listEl.innerHTML = `
+                    <div class="empty-state">
+                        <p>No tests match the current filter or search criteria.</p>
+                        <button type="button" class="btn-action" onclick="resetFilters()">Reset All Filters</button>
+                    </div>`;
                 return;
             }}
+
+            const fragment = document.createDocumentFragment();
 
             sorted.forEach((t, idx) => {{
                 const isFail = t.status === 'FAILED' || t.status === 'ERROR';
                 const el = document.createElement('article');
                 el.className = `test-row ${{isFail ? 'failed' : 'passed'}}`;
+
+                // Failure message preview in header
+                let failurePreview = '';
+                if (isFail) {{
+                    const msg = (t.failure_evidence && t.failure_evidence.message) ||
+                                (t.step_results && t.step_results.find(s => s.error_message)?.error_message) ||
+                                'Test assertions failed';
+                    failurePreview = `<span class="failure-preview" title="${{escapeHtml(msg)}}">&bull; ${{escapeHtml(msg)}}</span>`;
+                }}
 
                 let rcaHtml = '';
                 if (t.failure_analysis) {{
@@ -1315,8 +1532,8 @@ class HTMLReporter:
                         ? `<div class="rca-fix-container">
                              <div class="rca-section-title">Recommended Remediation:</div>
                              <div class="rca-fix">
-                               <div class="rca-fix-text">${{escapeHtml(fa.suggested_fix)}}</div>
-                               <button type="button" class="btn-copy" onclick="copySnippet(this, this.previousElementSibling.textContent)" aria-label="Copy suggested fix">Copy Fix</button>
+                               <div class="rca-fix-text" id="fix-text-${{idx}}">${{escapeHtml(fa.suggested_fix)}}</div>
+                               <button type="button" class="btn-copy" onclick="copyById(this, 'fix-text-${{idx}}', 'Fix')" aria-label="Copy suggested fix">Copy Fix</button>
                              </div>
                            </div>`
                         : '';
@@ -1324,7 +1541,7 @@ class HTMLReporter:
                     rcaHtml = `
                         <div class="rca-box" role="region" aria-label="Root Cause Analysis">
                             <div class="rca-header">
-                                <span class="rca-title">⚡ AI Root Cause Analysis</span>
+                                <span class="rca-title">Root Cause Analysis</span>
                                 <span class="confidence-badge">Confidence: ${{confidence}}%</span>
                             </div>
                             ${{factsList}}
@@ -1339,14 +1556,37 @@ class HTMLReporter:
                     stepsHtml = t.step_results.map((s, sIdx) => {{
                         let traceSnippet = '';
                         if (s.http_trace) {{
-                            const traceRaw = `${{s.http_trace.request_method || 'GET'}} ${{s.http_trace.request_url || ''}}\\nStatus: ${{s.http_trace.response_status || 'Network Error'}}\\n\\nResponse Body:\\n${{JSON.stringify(s.http_trace.response_body, null, 2)}}`;
+                            const method = s.http_trace.request_method || 'GET';
+                            const url = s.http_trace.request_url || '';
+                            const status = s.http_trace.response_status || 'Network Error';
+                            const bodyJson = JSON.stringify(s.http_trace.response_body, null, 2);
+                            const traceRaw = `${{method}} ${{url}}\\nStatus: ${{status}}\\n\\nResponse Body:\\n${{bodyJson}}`;
+                            const traceId = `trace-${{idx}}-${{sIdx}}`;
+
+                            // Build cURL command for quick reproduction
+                            let curlCmd = `curl -X ${{method}} "${{url}}"`;
+                            if (s.http_trace.request_headers) {{
+                                for (const [hk, hv] of Object.entries(s.http_trace.request_headers)) {{
+                                    curlCmd += ` -H "${{hk}}: ${{hv}}"`;
+                                }}
+                            }}
+                            if (s.http_trace.request_body) {{
+                                const reqBodyStr = typeof s.http_trace.request_body === 'string'
+                                    ? s.http_trace.request_body
+                                    : JSON.stringify(s.http_trace.request_body);
+                                curlCmd += ` -H "Content-Type: application/json" -d '${{reqBodyStr.replace(/'/g, "'\\\\''")}}'`;
+                            }}
+
                             traceSnippet = `
                                 <div class="trace-box">
                                     <div class="trace-header">
-                                        <span><strong>${{escapeHtml(s.http_trace.request_method)}}</strong> ${{escapeHtml(s.http_trace.request_url)}} &rarr; Status: ${{s.http_trace.response_status || 'Network Error'}}</span>
-                                        <button type="button" class="btn-copy" onclick="copySnippet(this, this.closest('.trace-box').querySelector('code').textContent)" aria-label="Copy HTTP trace">Copy Trace</button>
+                                        <span><strong>${{escapeHtml(method)}}</strong> ${{escapeHtml(url)}} &rarr; Status: ${{status}}</span>
+                                        <div class="trace-actions">
+                                            <button type="button" class="btn-copy" onclick="copyRawText(this, ${{JSON.stringify(curlCmd)}}, 'cURL')" aria-label="Copy as cURL command">Copy cURL</button>
+                                            <button type="button" class="btn-copy" onclick="copyById(this, '${{traceId}}', 'Trace')" aria-label="Copy HTTP trace">Copy Trace</button>
+                                        </div>
                                     </div>
-                                    <pre><code>${{escapeHtml(traceRaw)}}</code></pre>
+                                    <pre><code id="${{traceId}}">${{escapeHtml(traceRaw)}}</code></pre>
                                 </div>
                             `;
                         }}
@@ -1357,7 +1597,7 @@ class HTMLReporter:
                                     <span>${{escapeHtml(s.step_name)}}</span>
                                     <span>${{s.duration_ms}}ms &bull; <strong style="color: ${{s.status === 'PASSED' ? 'var(--pass)' : 'var(--fail)'}}">${{s.status}}</strong></span>
                                 </div>
-                                ${{s.error_message ? `<div class="step-error">❌ ${{escapeHtml(s.error_message)}}</div>` : ''}}
+                                ${{s.error_message ? `<div class="step-error">Failure: ${{escapeHtml(s.error_message)}}</div>` : ''}}
                                 ${{traceSnippet}}
                             </div>
                         `;
@@ -1392,13 +1632,14 @@ class HTMLReporter:
                 let stackTraceHtml = '';
                 if (t.failure_evidence && t.failure_evidence.stack_trace) {{
                     const st = t.failure_evidence.stack_trace;
+                    const stId = `stacktrace-${{idx}}`;
                     stackTraceHtml = `
                         <details class="diag-details" open>
                             <summary>Diagnostic Stack Trace</summary>
                             <div style="margin-top: 0.5rem; display: flex; justify-content: flex-end;">
-                                <button type="button" class="btn-copy" onclick="copySnippet(this, this.parentElement.nextElementSibling.querySelector('code').textContent)" aria-label="Copy stack trace">Copy Stack Trace</button>
+                                <button type="button" class="btn-copy" onclick="copyById(this, '${{stId}}', 'Stack Trace')" aria-label="Copy stack trace">Copy Stack Trace</button>
                             </div>
-                            <pre><code>${{escapeHtml(st)}}</code></pre>
+                            <pre><code id="${{stId}}">${{escapeHtml(st)}}</code></pre>
                         </details>
                     `;
                 }}
@@ -1429,6 +1670,7 @@ class HTMLReporter:
                             <span class="test-name">${{escapeHtml(t.test_name)}}</span>
                             <span class="test-tag">${{escapeHtml(t.test_type)}}</span>
                             <span class="test-tag">${{escapeHtml(t.category)}}</span>
+                            ${{failurePreview}}
                         </div>
                         <div class="test-meta-right">
                             <span>${{t.duration_ms}}ms</span>
@@ -1446,8 +1688,10 @@ class HTMLReporter:
                         ${{screenshotHtml}}
                     </div>
                 `;
-                listEl.appendChild(el);
+                fragment.appendChild(el);
             }});
+
+            listEl.appendChild(fragment);
         }}
 
         function toggleTest(idx) {{
@@ -1484,6 +1728,24 @@ class HTMLReporter:
             }});
         }}
 
+        function expandFailedOnly() {{
+            const rows = document.querySelectorAll('.test-row');
+            rows.forEach(row => {{
+                const btn = row.querySelector('.test-header-btn');
+                const bodyEl = row.querySelector('.test-body');
+                if (!btn || !bodyEl) return;
+                if (row.classList.contains('failed')) {{
+                    bodyEl.removeAttribute('hidden');
+                    btn.setAttribute('aria-expanded', 'true');
+                    bodyEl.querySelectorAll('details').forEach(d => d.open = true);
+                }} else {{
+                    bodyEl.setAttribute('hidden', '');
+                    btn.setAttribute('aria-expanded', 'false');
+                }}
+            }});
+            showToast('Expanded failure diagnostics');
+        }}
+
         function setFilter(filter) {{
             currentFilter = filter;
             const filterButtons = [
@@ -1507,7 +1769,22 @@ class HTMLReporter:
             renderTests();
         }}
 
-        function copySnippet(buttonEl, text) {{
+        function resetFilters() {{
+            clearSearch();
+            setFilter('ALL');
+        }}
+
+        function copyById(buttonEl, elementId, label) {{
+            const el = document.getElementById(elementId);
+            const text = el ? el.textContent : '';
+            copySnippet(buttonEl, text, label);
+        }}
+
+        function copyRawText(buttonEl, text, label) {{
+            copySnippet(buttonEl, text, label);
+        }}
+
+        function copySnippet(buttonEl, text, label = '') {{
             function fallbackCopy() {{
                 try {{
                     const textarea = document.createElement('textarea');
@@ -1520,6 +1797,7 @@ class HTMLReporter:
                     const successful = document.execCommand('copy');
                     document.body.removeChild(textarea);
                     showCopiedFeedback(buttonEl, successful ? 'Copied!' : 'Copied');
+                    showToast(label ? `Copied ${{label}} to clipboard` : 'Copied to clipboard');
                 }} catch (e) {{
                     showCopiedFeedback(buttonEl, 'Copied');
                 }}
@@ -1528,6 +1806,7 @@ class HTMLReporter:
             if (navigator.clipboard && window.isSecureContext) {{
                 navigator.clipboard.writeText(text).then(() => {{
                     showCopiedFeedback(buttonEl, 'Copied!');
+                    showToast(label ? `Copied ${{label}} to clipboard` : 'Copied to clipboard');
                 }}).catch(() => {{
                     fallbackCopy();
                 }});
@@ -1536,9 +1815,9 @@ class HTMLReporter:
             }}
         }}
 
-        function showCopiedFeedback(btn, label = 'Copied!') {{
+        function showCopiedFeedback(btn, text = 'Copied!') {{
             const orig = btn.textContent;
-            btn.textContent = label;
+            btn.textContent = text;
             btn.style.color = 'var(--pass)';
             btn.style.borderColor = 'var(--pass)';
             setTimeout(() => {{
@@ -1546,6 +1825,17 @@ class HTMLReporter:
                 btn.style.color = '';
                 btn.style.borderColor = '';
             }}, 2000);
+        }}
+
+        function showToast(message) {{
+            const toast = document.getElementById('toastNotification');
+            if (!toast) return;
+            toast.textContent = message;
+            toast.style.display = 'block';
+            clearTimeout(window.__toastTimer);
+            window.__toastTimer = setTimeout(() => {{
+                toast.style.display = 'none';
+            }}, 3000);
         }}
 
         function openScreenshotModal(base64Src) {{
@@ -1564,15 +1854,31 @@ class HTMLReporter:
             }}
         }}
 
-        // Close modal on outside backdrop click
-        document.getElementById('screenshotModal')?.addEventListener('click', (e) => {{
-            const dialog = document.getElementById('screenshotModal');
-            const rect = dialog.getBoundingClientRect();
-            const isInDialog = (rect.top <= e.clientY && e.clientY <= rect.top + rect.height &&
-                                rect.left <= e.clientX && e.clientX <= rect.left + rect.width);
-            if (!isInDialog) {{
+        function openShortcutsModal() {{
+            const dialog = document.getElementById('shortcutsModal');
+            if (dialog) {{
+                dialog.showModal();
+            }}
+        }}
+
+        function closeShortcutsModal() {{
+            const dialog = document.getElementById('shortcutsModal');
+            if (dialog) {{
                 dialog.close();
             }}
+        }}
+
+        // Close modals on outside backdrop click
+        ['screenshotModal', 'shortcutsModal'].forEach(modalId => {{
+            const dialog = document.getElementById(modalId);
+            dialog?.addEventListener('click', (e) => {{
+                const rect = dialog.getBoundingClientRect();
+                const isInDialog = (rect.top <= e.clientY && e.clientY <= rect.top + rect.height &&
+                                    rect.left <= e.clientX && e.clientX <= rect.left + rect.width);
+                if (!isInDialog) {{
+                    dialog.close();
+                }}
+            }});
         }});
 
         function escapeHtml(str) {{

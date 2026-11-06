@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.3.1] - 2026-11-07
+
+### Added
+- **Interactive HTML Test Report Redesign**: Modern high-density slate visual design system with zero glowing/purple visual bloat.
+- **Copy as cURL**: Added 1-click terminal reproduction button for all HTTP step traces in the HTML report.
+- **Keyboard Shortcuts Dialog (`?`)**: Full modal cheatsheet supporting quick search (`/`), failed-only expansion (`f`), expand all (`e`), collapse all (`c`), and theme toggle (`t`).
+- **Terminal CLI in Action Showcase GIF**: Added animated recording to README and package documentation.
+
+### Changed
+- **Removed Bundled Demo App**: Completely removed `recon demo`, `recon serve-demo`, and `recon/demo_app` from the published package, decoupling tests and package builds into a lean, pure-library architecture.
+- **Accessible WCAG AA/AAA Palette**: Verified and updated high-contrast color variables across both Dark and Light modes.
+- **Optimized Batch DOM Reflow**: Transitioned HTML reporter rendering engine to `DocumentFragment` for instantaneous sub-millisecond table updates.
+
+### Fixed
+- **Terminal Progress Wrap**: Truncated verbose multiline execution errors in live progress bar to prevent terminal scrolling bloat.
+- **Doctor Diagnostic Table**: Improved column readability across dark and light terminal profiles.
+
+---
+
 ## [0.3.0] - 2026-10-25
 
 ### Added

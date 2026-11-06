@@ -13,6 +13,10 @@
   <a href="https://github.com/ttnhan227/recon/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-green.svg" alt="MIT license"></a>
 </p>
 
+<p align="center">
+  <img src="https://raw.githubusercontent.com/ttnhan227/recon/main/docs/assets/demo.gif" alt="Recon QA CLI in Action" width="850">
+</p>
+
 Recon QA discovers endpoints, derives test cases from their schemas, executes them with bounded concurrency, and writes self-contained HTML and JSON reports. It works without an AI account; LLM-assisted generation and failure analysis are optional.
 
 > **Use Recon only on applications you own or are explicitly authorized to test.** Generated requests can create, update, or delete data described by the target API.
@@ -59,7 +63,6 @@ You only need the command above to get your testing done. These optional command
 | :--- | :--- |
 | `recon fix` | Automatically patch source code defects found in your test run |
 | `recon report` | Open the interactive HTML test report in your default browser |
-| `recon demo` | Run an instant zero-setup 5-second local demo with intentional defects |
 | `recon config` | Configure AI provider keys (`recon set-key`) or switch models (`recon model`) |
 | `recon doctor` | Check runtime, Playwright Chromium setup, and system diagnostics |
 
@@ -85,11 +88,11 @@ Reports are stored under `~/.recon/reports/` by default. Use `--report-dir` to c
 
 ## See the output
 
-Recon keeps the terminal summary concise and puts the evidence in a self-contained report. The images below come from the reproducible local demo, not a customer API.
+Recon keeps the terminal summary concise and puts the complete evidence in a self-contained interactive report.
 
 | Terminal run | HTML report |
 | :---: | :---: |
-| ![Recon QA terminal output showing discovered routes, generated checks, and detected defects](docs/screenshots/recon-terminal.png) | ![Recon QA HTML report showing results and failure details](docs/screenshots/recon-report.png) |
+| ![Recon QA terminal output showing discovered routes, generated checks, and detected defects](https://raw.githubusercontent.com/ttnhan227/recon/main/docs/screenshots/recon-terminal.png) | ![Recon QA HTML report showing results and failure details](https://raw.githubusercontent.com/ttnhan227/recon/main/docs/screenshots/recon-report.png) |
 
 ## Architecture & Execution Pipeline
 

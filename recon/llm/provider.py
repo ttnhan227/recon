@@ -133,17 +133,8 @@ class KnowledgeBase:
     def get_store(self) -> VectorStore:
         """Get the underlying vector store."""
         return self.vector_store
-        for i, doc in enumerate(self.documents):
-            d_lower = doc.lower()
-            # Count matching words (simple tf-like scoring)
-            score = sum(1 for w in q_lower.split() if w in d_lower)
-            if score > 0:
-                scored.append((score, i))
-        if not scored:
-            return ""
-        scored.sort(key=lambda x: -x[0])
-        top_indices = [i for _, i in scored[:top_k]]
-        return "\n\n".join(self.documents[i] for i in top_indices)
+
+
 async def _post_with_retry(
     client: Any,
     url: str,
@@ -600,8 +591,8 @@ class OpenAICompatibleProvider(LLMProvider):
                 context = store.query(prompt, top_k=settings.rag_top_k)
 
         if context:
-            payload["messages"].insert(
-                0, {"role": "system", "content": f"Context from knowledge base:\\n{context}\\n\\nUse the above context when relevant. If the context does not answer the question, ignore it and answer from your own knowledge."}
+            messages.insert(
+                0, {"role": "system", "content": f"Context from knowledge base:\n{context}\n\nUse the above context when relevant. If the context does not answer the question, ignore it and answer from your own knowledge."}
             )
 
         async with httpx.AsyncClient(timeout=30.0) as client:
