@@ -86,14 +86,6 @@ recon test http://localhost:8000 --spec ./openapi.yaml
 
 Reports are stored under `~/.recon/reports/` by default. Use `--report-dir` to choose another location. A test run exits with code `1` when it finds failed checks, which makes the command useful as a CI quality gate.
 
-## See the output
-
-Recon keeps the terminal summary concise and puts the complete evidence in a self-contained interactive report.
-
-| Terminal run | HTML report |
-| :---: | :---: |
-| ![Recon QA terminal output showing discovered routes, generated checks, and detected defects](https://raw.githubusercontent.com/ttnhan227/recon/main/docs/screenshots/recon-terminal.png) | ![Recon QA HTML report showing results and failure details](https://raw.githubusercontent.com/ttnhan227/recon/main/docs/screenshots/recon-report.png) |
-
 ## Architecture & Execution Pipeline
 
 ```mermaid
