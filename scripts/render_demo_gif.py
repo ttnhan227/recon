@@ -1,4 +1,4 @@
-"""Generate a high-polish, production-grade animated terminal GIF of Recon QA CLI in action."""
+"""Generate a high-polish, production-grade animated terminal GIF of Recon QA CLI with explicit AI showcase."""
 
 import asyncio
 from pathlib import Path
@@ -19,7 +19,7 @@ HTML_TEMPLATE = """
   * {{ box-sizing: border-box; margin: 0; padding: 0; }}
   body {{
     background: #0b0f19;
-    padding: 30px;
+    padding: 24px;
     display: flex;
     justify-content: center;
     align-items: center;
@@ -58,17 +58,17 @@ HTML_TEMPLATE = """
     letter-spacing: 0.3px;
   }}
   .term {{
-    padding: 24px;
+    padding: 22px 24px;
     color: #e2e8f0;
-    font-size: 14px;
-    line-height: 1.6;
+    font-size: 13.5px;
+    line-height: 1.55;
     min-height: 520px;
   }}
   .prompt-line {{
     display: flex;
     align-items: center;
     gap: 8px;
-    margin-bottom: 12px;
+    margin-bottom: 10px;
   }}
   .p-icon {{ color: #06b6d4; font-weight: bold; }}
   .p-path {{ color: #3b82f6; font-weight: 600; }}
@@ -80,13 +80,12 @@ HTML_TEMPLATE = """
     height: 16px;
     background: #38bdf8;
     vertical-align: middle;
-    animation: blink 1s step-end infinite;
   }}
   .panel {{
     border: 1px solid;
     border-radius: 8px;
-    padding: 10px 16px;
-    margin: 10px 0;
+    padding: 10px 14px;
+    margin: 8px 0;
   }}
   .panel-cyan {{
     border-color: #0ea5e9;
@@ -96,9 +95,9 @@ HTML_TEMPLATE = """
     border-color: #ef4444;
     background: rgba(239, 68, 68, 0.05);
   }}
-  .panel-yellow {{
-    border-color: #f59e0b;
-    background: rgba(245, 158, 11, 0.05);
+  .panel-ai {{
+    border: 1px solid #a855f7;
+    background: rgba(168, 85, 247, 0.08);
   }}
   .panel-title {{
     font-weight: bold;
@@ -109,24 +108,25 @@ HTML_TEMPLATE = """
   .green {{ color: #34d399; font-weight: 600; }}
   .red {{ color: #f87171; font-weight: 600; }}
   .yellow {{ color: #fbbf24; font-weight: 600; }}
+  .purple {{ color: #c084fc; font-weight: 600; }}
   .white {{ color: #f8fafc; }}
   .bold {{ font-weight: bold; }}
 
   table.term-table {{
     width: 100%;
     border-collapse: collapse;
-    margin: 10px 0 14px 0;
-    font-size: 13px;
+    margin: 8px 0 10px 0;
+    font-size: 12.5px;
   }}
   table.term-table th {{
     text-align: left;
     color: #38bdf8;
     border-bottom: 1px solid #334155;
-    padding: 4px 8px;
+    padding: 4px 6px;
     font-weight: 600;
   }}
   table.term-table td {{
-    padding: 4px 8px;
+    padding: 3px 6px;
     border-bottom: 1px solid rgba(51, 65, 85, 0.4);
   }}
   .badge {{
@@ -140,6 +140,7 @@ HTML_TEMPLATE = """
   .b-post {{ background: #1e3a8a; color: #93c5fd; }}
   .b-pass {{ color: #34d399; font-weight: bold; }}
   .b-fail {{ color: #f87171; font-weight: bold; }}
+  .b-ai {{ background: #581c87; color: #f3e8ff; font-weight: bold; }}
 </style>
 </head>
 <body>
@@ -158,7 +159,6 @@ HTML_TEMPLATE = """
 </html>
 """
 
-# Frames definitions
 PROMPT = """
 <div class="prompt-line">
   <span class="p-icon">❯</span>
@@ -173,11 +173,11 @@ FRAME_COMMAND = "recon test http://localhost:8000 --ai"
 DISCOVERY_PANEL = """
 <div class="panel panel-cyan">
   <div class="panel-title white bold">Recon QA <span class="cyan">(Project: localhost_8000)</span></div>
-  <div class="dim">Target: <span class="cyan">http://localhost:8000</span> | Concurrency: <span class="yellow">4</span> | Browser: <span class="white">True</span> | AI Provider: <span class="green">Active (Gemini)</span></div>
+  <div class="dim">Target: <span class="cyan">http://localhost:8000</span> | Concurrency: <span class="yellow">4</span> | AI Engine: <span class="purple bold">Active (Gemini 3.5 Flash)</span></div>
 </div>
-<div style="margin: 8px 0; color: #94a3b8;">
+<div style="margin: 6px 0; color: #94a3b8; font-size: 13px;">
   <span class="cyan bold">Scanning target:</span> http://localhost:8000<br>
-  <span class="green">✔</span> Discovered 12 endpoints & schemas from OpenAPI specification
+  <span class="green">✔</span> Discovered 12 endpoints from OpenAPI spec
 </div>
 """
 
@@ -185,7 +185,7 @@ TABLE_DISCOVERED = """
 <table class="term-table">
   <thead>
     <tr>
-      <th style="width: 80px;">Method</th>
+      <th style="width: 75px;">Method</th>
       <th>Path</th>
       <th>Parameters</th>
       <th>Response</th>
@@ -204,58 +204,63 @@ TABLE_DISCOVERED = """
       <td class="dim">items, coupon_code</td>
       <td class="white">201 Created (Order)</td>
     </tr>
-    <tr>
-      <td><span class="badge b-get">GET</span></td>
-      <td class="cyan">/api/v1/users/profile</td>
-      <td class="dim">Authorization Bearer</td>
-      <td class="white">200 OK (User)</td>
-    </tr>
   </tbody>
 </table>
 """
 
+AI_GENERATION_BANNER = """
+<div style="margin: 6px 0; color: #c084fc; font-size: 13px;">
+  <span class="badge b-ai">🤖 AI ENGINE</span> Synthesizing exploratory edge-case tests with <strong>Gemini</strong>...
+  <span class="green bold">✔ Added 2 boundary injection vectors</span>
+</div>
+"""
+
 TEST_LINES = [
-    '<div style="color:#94a3b8; margin: 4px 0;"><span class="b-pass">✔ PASS</span> <span class="cyan">GET</span> /api/v1/health <span class="dim">→ 200 OK (8ms)</span></div>',
-    '<div style="color:#94a3b8; margin: 4px 0;"><span class="b-pass">✔ PASS</span> <span class="cyan">GET</span> /api/v1/products <span class="dim">→ 200 OK (24ms) [boundary: limit=100]</span></div>',
-    '<div style="color:#94a3b8; margin: 4px 0;"><span class="b-pass">✔ PASS</span> <span class="cyan">POST</span> /api/v1/auth/login <span class="dim">→ 200 OK (38ms) [positive auth]</span></div>',
-    '<div style="color:#f87171; margin: 4px 0; font-weight: 500;"><span class="b-fail">✖ FAIL</span> <span class="cyan">POST</span> /api/v1/orders/checkout <span class="red">→ 500 Internal Error (42ms) [coupon=null]</span></div>',
-    '<div style="color:#94a3b8; margin: 4px 0;"><span class="b-pass">✔ PASS</span> <span class="cyan">GET</span> /api/v1/users/profile <span class="dim">→ 401 Unauthorized (12ms) [negative auth guard]</span></div>',
+    '<div style="color:#94a3b8; margin: 3px 0;"><span class="b-pass">✔ PASS</span> <span class="cyan">GET</span> /api/v1/health <span class="dim">→ 200 OK (8ms)</span></div>',
+    '<div style="color:#94a3b8; margin: 3px 0;"><span class="b-pass">✔ PASS</span> <span class="cyan">GET</span> /api/v1/products <span class="dim">→ 200 OK (24ms) [schema baseline]</span></div>',
+    '<div style="color:#94a3b8; margin: 3px 0;"><span class="b-pass">✔ PASS</span> <span class="cyan">POST</span> /api/v1/auth/login <span class="dim">→ 200 OK (38ms) [positive auth]</span></div>',
+    '<div style="color:#f87171; margin: 3px 0; font-weight: 500;"><span class="b-fail">✖ FAIL</span> <span class="cyan">POST</span> /api/v1/orders/checkout <span class="red">→ 500 Error (42ms)</span> <span class="badge b-ai">🤖 AI Fuzz: coupon=null</span></div>',
+    '<div style="color:#94a3b8; margin: 3px 0;"><span class="b-pass">✔ PASS</span> <span class="cyan">GET</span> /api/v1/users/profile <span class="dim">→ 401 Unauthorized (12ms) [auth guard]</span></div>',
 ]
 
 SUMMARY_PANEL = """
-<div class="panel panel-red" style="margin-top: 14px;">
-  <div class="panel-title bold white">Recon Test Run Completed</div>
-  <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 4px; margin-top: 6px; font-size: 13px;">
+<div class="panel panel-red" style="margin-top: 10px;">
+  <div class="panel-title bold white" style="display:flex; justify-content:space-between;">
+    <span>Recon Test Run Completed</span>
+    <span class="yellow">Pass Rate: 80.0%</span>
+  </div>
+  <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 4px; margin-top: 4px; font-size: 12.5px;">
     <div>Total Tests : <span class="white bold">5</span></div>
     <div>Passed      : <span class="green bold">4</span></div>
     <div>Failed      : <span class="red bold">1</span></div>
-    <div>Pass Rate   : <span class="yellow bold">80.0%</span></div>
-    <div>Duration    : <span class="white">1.24s</span></div>
-    <div>HTML Report : <span class="cyan" style="text-decoration: underline;">reports/run-20261107/report.html</span></div>
   </div>
 </div>
 """
 
 AI_PANEL = """
-<div class="panel panel-yellow">
-  <div class="panel-title bold yellow">⚡ Failure Analysis Highlights (Gemini AI Root-Cause)</div>
-  <div style="font-size: 13px; line-height: 1.5; margin-top: 4px;">
-    <div><span class="red bold">Test Failed:</span> POST /api/v1/orders/checkout</div>
-    <div><span class="yellow bold">Likely Cause:</span> Unhandled null pointer in coupon discount validator</div>
-    <div><span class="green bold">Suggested Fix:</span> Add <code style="background:rgba(255,255,255,0.1); padding: 1px 4px; border-radius: 3px;">if order.coupon and order.coupon.code:</code> check before discount lookup</div>
-    <div class="dim">Confidence Score: 95%</div>
+<div class="panel panel-ai" style="margin-top: 8px;">
+  <div style="display:flex; justify-content:space-between; align-items:center;">
+    <div class="panel-title purple bold" style="margin-bottom:0;">
+      🤖 Gemini AI Root-Cause Diagnostics
+    </div>
+    <span style="background:#059669; color:#ecfdf5; font-size:11px; font-weight:800; padding:1px 6px; border-radius:4px;">96% CONFIDENCE</span>
+  </div>
+  <div style="font-size: 12.5px; line-height: 1.5; margin-top: 6px;">
+    <div><span class="red bold">Defect Found :</span> <span class="white">Unhandled null pointer in discount validator (coupon is None)</span></div>
+    <div><span class="green bold">Suggested Fix :</span> <code style="background:rgba(255,255,255,0.1); color:#38bdf8; padding:1px 5px; border-radius:3px;">if order.coupon and order.coupon.code: apply_discount()</code></div>
+    <div style="color:#94a3b8; margin-top: 4px; font-size: 11.5px;">💡 Auto-repair ready: Run <span class="cyan bold">recon fix</span> to apply reviewable code patch</div>
   </div>
 </div>
 """
 
 REPORT_READY = """
-<div style="margin: 10px 0; color: #34d399; font-weight: 600;">
-  ✔ Interactive HTML report ready with 1-click cURL reproduction: <span style="text-decoration: underline; color: #38bdf8;">reports/latest.html</span>
+<div style="margin: 8px 0; color: #34d399; font-weight: 600; font-size: 13px;">
+  ✔ Interactive report ready: <span style="text-decoration: underline; color: #38bdf8;">reports/latest.html</span>
 </div>
 """
 
 PROMPT_RETURN = """
-<div class="prompt-line" style="margin-top: 12px;">
+<div class="prompt-line" style="margin-top: 8px;">
   <span class="p-icon">❯</span>
   <span class="p-path">recon-app</span>
   <span class="p-branch">(main)</span>
@@ -289,7 +294,16 @@ async def generate_gif():
 
     # Discovery panel + endpoints table
     f_disc = PROMPT.format(cmd=cmd_text, cursor="") + DISCOVERY_PANEL + TABLE_DISCOVERED
-    frames_data.append((f_disc, 650))
+    frames_data.append((f_disc, 600))
+
+    # AI Test Generation step (Explicit AI Showcase!)
+    f_ai_gen = (
+        PROMPT.format(cmd=cmd_text, cursor="")
+        + DISCOVERY_PANEL
+        + TABLE_DISCOVERED
+        + AI_GENERATION_BANNER
+    )
+    frames_data.append((f_ai_gen, 900))
 
     # Running tests one by one
     running_tests = ""
@@ -299,10 +313,11 @@ async def generate_gif():
             PROMPT.format(cmd=cmd_text, cursor="")
             + DISCOVERY_PANEL
             + TABLE_DISCOVERED
-            + '<div style="margin-top: 8px; font-weight: 600; color: #38bdf8;">Executing Generated Test Suite:</div>'
+            + AI_GENERATION_BANNER
+            + '<div style="margin-top: 6px; font-weight: 600; color: #38bdf8; font-size:13px;">Executing Test Suite:</div>'
             + running_tests
         )
-        duration = 320 if "FAIL" in t_line else 200
+        duration = 450 if "FAIL" in t_line else 200
         frames_data.append((f_tests, duration))
 
     # Summary panel appears
@@ -310,7 +325,8 @@ async def generate_gif():
         PROMPT.format(cmd=cmd_text, cursor="")
         + DISCOVERY_PANEL
         + TABLE_DISCOVERED
-        + '<div style="margin-top: 8px; font-weight: 600; color: #38bdf8;">Executing Generated Test Suite:</div>'
+        + AI_GENERATION_BANNER
+        + '<div style="margin-top: 6px; font-weight: 600; color: #38bdf8; font-size:13px;">Executing Test Suite:</div>'
         + running_tests
         + SUMMARY_PANEL
     )
@@ -321,27 +337,29 @@ async def generate_gif():
         PROMPT.format(cmd=cmd_text, cursor="")
         + DISCOVERY_PANEL
         + TABLE_DISCOVERED
-        + '<div style="margin-top: 8px; font-weight: 600; color: #38bdf8;">Executing Generated Test Suite:</div>'
+        + AI_GENERATION_BANNER
+        + '<div style="margin-top: 6px; font-weight: 600; color: #38bdf8; font-size:13px;">Executing Test Suite:</div>'
         + running_tests
         + SUMMARY_PANEL
         + AI_PANEL
     )
-    frames_data.append((f_ai, 1100))
+    frames_data.append((f_ai, 1200))
 
     # Final frame: prompt return and report link
     f_final = (
         PROMPT.format(cmd=cmd_text, cursor="")
         + DISCOVERY_PANEL
         + TABLE_DISCOVERED
-        + '<div style="margin-top: 8px; font-weight: 600; color: #38bdf8;">Executing Generated Test Suite:</div>'
+        + AI_GENERATION_BANNER
+        + '<div style="margin-top: 6px; font-weight: 600; color: #38bdf8; font-size:13px;">Executing Test Suite:</div>'
         + running_tests
         + SUMMARY_PANEL
         + AI_PANEL
         + REPORT_READY
         + PROMPT_RETURN
     )
-    # Hold final frame for 4000ms so PR viewers have time to read
-    frames_data.append((f_final, 4000))
+    # Hold final frame for 4500ms so viewers have time to absorb the AI diagnosis and fix
+    frames_data.append((f_final, 4500))
 
     print(f"Total animation frames: {len(frames_data)}")
 
@@ -369,7 +387,7 @@ async def generate_gif():
             else:
                 rgb_img.paste(img)
 
-            # Downscale slightly for crisp retina sampling (900 -> 800) and small file size
+            # Downscale slightly for crisp retina sampling
             resized = rgb_img.resize(
                 (820, int(820 * rgb_img.height / rgb_img.width)), Image.Resampling.LANCZOS
             )
