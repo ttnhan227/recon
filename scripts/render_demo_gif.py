@@ -281,7 +281,10 @@ async def generate_gif():
         frames_data.append((content, 90))
 
     # Command executed (enter pressed)
-    f_enter = PROMPT.format(cmd=cmd_text, cursor="") + '<div style="margin: 8px 0; color: #94a3b8;"><span class="cyan">⠋</span> Discovering application assets & OpenAPI schemas...</div>'
+    f_enter = (
+        PROMPT.format(cmd=cmd_text, cursor="")
+        + '<div style="margin: 8px 0; color: #94a3b8;"><span class="cyan">⠋</span> Discovering application assets & OpenAPI schemas...</div>'
+    )
     frames_data.append((f_enter, 450))
 
     # Discovery panel + endpoints table
@@ -357,6 +360,7 @@ async def generate_gif():
             screenshot_bytes = await window_elem.screenshot()
 
             import io
+
             img = Image.open(io.BytesIO(screenshot_bytes))
             # Convert RGBA to RGB with background
             rgb_img = Image.new("RGB", img.size, (11, 15, 25))
@@ -366,13 +370,15 @@ async def generate_gif():
                 rgb_img.paste(img)
 
             # Downscale slightly for crisp retina sampling (900 -> 800) and small file size
-            resized = rgb_img.resize((820, int(820 * rgb_img.height / rgb_img.width)), Image.Resampling.LANCZOS)
+            resized = rgb_img.resize(
+                (820, int(820 * rgb_img.height / rgb_img.width)), Image.Resampling.LANCZOS
+            )
 
             # Quantize with web-safe / adaptive palette
             quantized = resized.quantize(colors=128, method=Image.Quantize.MEDIANCUT)
             pil_images.append(quantized)
             durations.append(dur)
-            print(f"Rendered frame {i+1}/{len(frames_data)} ({dur}ms)")
+            print(f"Rendered frame {i + 1}/{len(frames_data)} ({dur}ms)")
 
         await browser.close()
 

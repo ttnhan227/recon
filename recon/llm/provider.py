@@ -96,21 +96,13 @@ class KnowledgeBase:
     # Default documents covering the project's architecture, API patterns, and LLM usage
     DEFAULT_DOCS = [
         "recon-qa discovers OpenAPI specifications from target applications to enumerate endpoints, parameters, and schemas. It supports HTTP and Playwright test execution for API and browser testing.",
-
         "The LLM provider in recon-qa supports multiple providers: Gemini, OpenAI, Mistral, Anthropic, Ollama (local), and custom OpenAI-compatible APIs. Configuration is via environment variables (RECON_GEMINI_API_KEY, RECON_OPENAI_API_KEY, RECON_MISTRAL_API_KEY, RECON_ANTHROPIC_API_KEY, OLLAMA_BASE_URL, RECON_LLM_MODEL).",
-
         "LLM test generation uses a system prompt that instructs the model to propose exploratory edge case tests including extreme boundary inputs, unexpected fields, and type confusion payloads. The output must be valid JSON conforming to a specific schema with test_cases array.",
-
         "LLM failure analysis uses a system prompt that instructs the model to distinguish observed facts from hypotheses and suggested fixes. The system prompt emphasizes privacy and secure handling of test artifacts.",
-
         "Tests are validated by assertions, not AI-generated conclusions. Recon-qa also includes a safety mechanism that validates all generated test cases before execution.",
-
         "The test generator produces exploratory test cases with fields: name, category, method, target, body, expected_status. Categories include BOUNDARY, NEGATIVE, EXPLORATORY.",
-
         "The failure analyzer produces structured JSON output with observed_facts, hypotheses, suggested_fix, and confidence_score.",
-
         "recon-qa is published as a Python package on PyPI and is available at https://pypi.org/project/recon-qa/.",
-
         "The tool uses a deterministic baseline for failure analysis via RootCauseAnalyzer, which parses test results and extracts observable failure evidence including failure categories, error messages, stack traces, console errors, and network errors.",
     ]
 
@@ -592,7 +584,11 @@ class OpenAICompatibleProvider(LLMProvider):
 
         if context:
             messages.insert(
-                0, {"role": "system", "content": f"Context from knowledge base:\n{context}\n\nUse the above context when relevant. If the context does not answer the question, ignore it and answer from your own knowledge."}
+                0,
+                {
+                    "role": "system",
+                    "content": f"Context from knowledge base:\n{context}\n\nUse the above context when relevant. If the context does not answer the question, ignore it and answer from your own knowledge.",
+                },
             )
 
         async with httpx.AsyncClient(timeout=30.0) as client:

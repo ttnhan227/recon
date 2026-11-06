@@ -44,7 +44,9 @@ Do NOT return markdown or commentary, only valid JSON.
 class AITestGenerator:
     """Proposes additional exploratory test cases using LLMs with strict safety validation."""
 
-    def __init__(self, provider: LLMProvider | None = None, vector_store: VectorStore | None = None):
+    def __init__(
+        self, provider: LLMProvider | None = None, vector_store: VectorStore | None = None
+    ):
         self.provider = provider or get_llm_provider()
         self.vector_store = vector_store
 
@@ -71,7 +73,9 @@ class AITestGenerator:
         # Build RAG context if available
         context = ""
         if self.vector_store is not None:
-            context = await self.provider.retrieve_context(f"Endpoint {app.target_url} test generation", top_k=3)
+            context = await self.provider.retrieve_context(
+                f"Endpoint {app.target_url} test generation", top_k=3
+            )
 
         prompt = f"Target Application Base URL: {app.target_url}\nEndpoints:\n{json.dumps(summary_endpoints, indent=2)}"
         if context:

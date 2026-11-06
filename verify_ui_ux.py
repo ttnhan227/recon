@@ -187,18 +187,12 @@ async def run_verification():
         # 1. Skip link test
         await page.keyboard.press("Tab")
         focused_id = await page.evaluate("document.activeElement.className")
-        assert "skip-link" in focused_id, (
-            f"Expected skip link to receive focus, got {focused_id}"
-        )
+        assert "skip-link" in focused_id, f"Expected skip link to receive focus, got {focused_id}"
 
         # 2. Theme toggle test & Light theme screenshot
-        is_dark_before = await page.evaluate(
-            "document.documentElement.classList.contains('dark')"
-        )
+        is_dark_before = await page.evaluate("document.documentElement.classList.contains('dark')")
         await page.click("#themeToggle")
-        is_dark_after = await page.evaluate(
-            "document.documentElement.classList.contains('dark')"
-        )
+        is_dark_after = await page.evaluate("document.documentElement.classList.contains('dark')")
         assert is_dark_before != is_dark_after, "Theme toggle did not switch dark class"
         sc_light = evidence_dir / "report_light.png"
         await page.screenshot(path=str(sc_light), full_page=True)
@@ -251,9 +245,7 @@ async def run_verification():
             "document.querySelector('#testList .test-id').textContent"
         )
         # TEST-UI-003 took 850ms, so it should be first when sorted by duration descending
-        assert first_test_id == "TEST-UI-003", (
-            f"Expected TEST-UI-003 first, got {first_test_id}"
-        )
+        assert first_test_id == "TEST-UI-003", f"Expected TEST-UI-003 first, got {first_test_id}"
 
         # 8. Copy button test
         await page.click("#btnExpandAll")

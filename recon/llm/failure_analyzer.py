@@ -36,7 +36,9 @@ Do NOT return markdown formatting or extra text, only valid JSON.
 class AIFailureAnalyzer:
     """Enhances deterministic failure analysis with LLM reasoning."""
 
-    def __init__(self, provider: LLMProvider | None = None, vector_store: VectorStore | None = None):
+    def __init__(
+        self, provider: LLMProvider | None = None, vector_store: VectorStore | None = None
+    ):
         self.provider = provider or get_llm_provider()
         self.vector_store = vector_store
 

@@ -567,7 +567,9 @@ def report_command(
 
     if target_html and target_html.exists():
         resolved_path = target_html.resolve()
-        console.print(f"[green]Report available at: [bold][link={resolved_path.as_uri()}]{resolved_path}[/link][/bold][/green]")
+        console.print(
+            f"[green]Report available at: [bold][link={resolved_path.as_uri()}]{resolved_path}[/link][/bold][/green]"
+        )
         import webbrowser
 
         try:

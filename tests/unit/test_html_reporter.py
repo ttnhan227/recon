@@ -312,4 +312,3 @@ def test_html_reporter_includes_developer_tools_and_accessibility(tmp_path: Path
     # cURL and copy trace capabilities
     assert "Copy cURL" in content
     assert "Copy Trace" in content
-
