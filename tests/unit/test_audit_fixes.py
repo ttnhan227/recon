@@ -516,3 +516,153 @@ async def test_doctor_playwright_optional_handling(monkeypatch):
 
     healthy = await run_doctor()
     assert healthy is True
+
+
+@pytest.mark.asyncio
+async def test_browser_and_master_agent_ssrf_rejection():
+    from recon.agent.master_agent import ReconMasterAgent
+    from recon.common.exceptions import SSRFSecurityError
+    from recon.common.models import AgentAction
+    from recon.execution.browser.agent import ReconBrowserAgent
+    from recon.llm.provider import MockProvider
+
+    b_agent = ReconBrowserAgent(provider=MockProvider())
+    with pytest.raises(SSRFSecurityError):
+        await b_agent.run(start_url="http://169.254.169.254/latest", goal="test")
+
+    mock_page = AsyncMock()
+    ok, err = await b_agent._execute_action(
+        mock_page,
+        AgentAction(action="navigate", url="http://169.254.169.254/latest", thought="nav"),
+    )
+    assert ok is False
+    assert "Security validation failed" in (err or "")
+    mock_page.goto.assert_not_called()
+
+    m_agent = ReconMasterAgent(provider=MockProvider())
+    with pytest.raises(SSRFSecurityError):
+        await m_agent._execute_api_probe("http://169.254.169.254", "/latest")
+
+
+@pytest.mark.asyncio
+async def test_playwright_crawler_extracts_submit_and_select_options():
+    from recon.discovery.web_crawler import WebCrawler
+
+    class FakeOption:
+        def __init__(self, val: str):
+            self._val = val
+
+        async def get_attribute(self, name: str):
+            return self._val if name == "value" else None
+
+        async def inner_text(self):
+            return self._val
+
+    class FakeInput:
+        def __init__(self, tag: str, name: str, input_type: str = "text", options=None):
+            self._tag = tag
+            self._name = name
+            self._type = input_type
+            self._options = options or []
+
+        async def get_attribute(self, attr: str):
+            if attr == "name":
+                return self._name
+            if attr == "type":
+                return self._type
+            return None
+
+        async def evaluate(self, _expr: str):
+            return self._tag
+
+        async def query_selector_all(self, _sel: str):
+            return [FakeOption(o) for o in self._options]
+
+    class FakeSubmit:
+        async def get_attribute(self, attr: str):
+            return "submit-btn" if attr == "id" else None
+
+    class FakeForm:
+        async def get_attribute(self, attr: str):
+            return {"action": "/submit", "method": "post", "id": "main-form"}.get(attr)
+
+        async def is_visible(self):
+            return True
+
+        async def query_selector_all(self, _sel: str):
+            return [
+                FakeInput("select", "role", options=["admin", "viewer"]),
+                FakeInput("input", "agree", input_type="checkbox"),
+            ]
+
+        async def query_selector(self, _sel: str):
+            return FakeSubmit()
+
+    class FakePage:
+        async def title(self):
+            return "Test"
+
+        async def query_selector_all(self, sel: str):
+            if sel == "form":
+                return [FakeForm()]
+            return []
+
+    crawler = WebCrawler(base_url="http://localhost:8000")
+    page_info = await crawler._parse_playwright_page(
+        FakePage(), "http://localhost:8000/form", 200, "Test", [], []
+    )
+    assert len(page_info.forms) == 1
+    form = page_info.forms[0]
+    assert form.submit_selector == "#submit-btn"
+    assert form.fields[0].options == ["admin", "viewer"]
+
+
+@pytest.mark.asyncio
+async def test_browser_runner_select_checkbox_wait_and_text_visible():
+    from recon.common.models import AssertionType, StepAssertion, TestStep
+    from recon.execution.browser.evidence import BrowserEvidenceCollector
+    from recon.execution.browser.runner import BrowserTestRunner
+
+    runner = BrowserTestRunner()
+    collector = BrowserEvidenceCollector(run_id="r1")
+
+    mock_locator = AsyncMock()
+    mock_locator.is_visible = AsyncMock(return_value=True)
+    mock_get_by_text = MagicMock()
+    mock_get_by_text.first = mock_locator
+
+    mock_page = AsyncMock()
+    mock_page.wait_for_selector = AsyncMock()
+    mock_page.select_option = AsyncMock()
+    mock_page.check = AsyncMock()
+    mock_page.get_by_text = MagicMock(return_value=mock_get_by_text)
+
+    step_sel = TestStep(
+        name="Select role",
+        step_type="browser_select",
+        selector="[name='role']",
+        value="admin",
+    )
+    res_sel, failed_sel = await runner._execute_browser_step(mock_page, step_sel, collector)
+    assert not failed_sel
+    mock_page.select_option.assert_called_once_with("[name='role']", "admin")
+
+    step_chk = TestStep(
+        name="Check agree",
+        step_type="browser_checkbox",
+        selector="[name='agree']",
+        value="true",
+    )
+    res_chk, failed_chk = await runner._execute_browser_step(mock_page, step_chk, collector)
+    assert not failed_chk
+    mock_page.check.assert_called_once_with("[name='agree']")
+
+    step_wait = TestStep(
+        name="Wait",
+        step_type="browser_wait",
+        value="0.01",
+        assertions=[StepAssertion(assertion_type=AssertionType.TEXT_VISIBLE, expected="Welcome")],
+    )
+    res_wait, failed_wait = await runner._execute_browser_step(mock_page, step_wait, collector)
+    assert not failed_wait
+    mock_locator.is_visible.assert_called_once()

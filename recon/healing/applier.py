@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import ast
+import hashlib
 import json
 import shutil
 from pathlib import Path
@@ -36,10 +37,12 @@ class PatchApplier:
     @staticmethod
     def get_backup_path(file_path: Path) -> Path:
         """Determines the centralized backup path in ~/.recon/backups/{project_slug}/..."""
-        project_slug = get_project_slug(cwd=file_path.parent)
+        resolved = file_path.resolve()
+        project_slug = get_project_slug(cwd=resolved.parent)
         backup_dir = get_recon_home() / "backups" / project_slug
         backup_dir.mkdir(parents=True, exist_ok=True)
-        return backup_dir / f"{file_path.name}.recon.bak"
+        path_hash = hashlib.sha256(str(resolved).encode("utf-8")).hexdigest()[:12]
+        return backup_dir / f"{resolved.name}.{path_hash}.recon.bak"
 
     @staticmethod
     def apply_patch(patch: ProposedPatch) -> Path | None:

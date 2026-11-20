@@ -7,6 +7,7 @@ from typing import Any
 
 import httpx
 
+from recon.common.config import settings
 from recon.common.logging import current_test_id
 from recon.common.models import (
     FailureCategory,
@@ -52,7 +53,7 @@ class APITestRunner:
         client_to_use = self._external_client or httpx.AsyncClient(
             timeout=test.timeout_seconds,
             follow_redirects=True,
-            verify=False,
+            verify=settings.verify_tls,
         )
 
         try:
@@ -213,18 +214,30 @@ class APITestRunner:
                 },
             )
 
-        # Parse response
+        # Parse response (bounded by max_response_size_bytes)
         resp_status = response.status_code
         resp_headers = dict(response.headers)
-        raw_text = response.text
+        max_bytes = settings.max_response_size_bytes
+        raw_content = getattr(response, "content", None)
+        if isinstance(raw_content, (bytes, bytearray)) and max_bytes > 0:
+            truncated = len(raw_content) > max_bytes
+            raw_bytes = raw_content[:max_bytes]
+            raw_text = raw_bytes.decode(response.encoding or "utf-8", errors="replace")
+        else:
+            raw_text = response.text
+            truncated = max_bytes > 0 and len(raw_text.encode("utf-8")) > max_bytes
+            if truncated:
+                raw_text = raw_text.encode("utf-8")[:max_bytes].decode("utf-8", errors="replace")
+
         json_body: Any = None
-        try:
-            json_body = response.json()
-            # Harvest entities into StatePool for downstream DAG tests
-            if resp_status in (200, 201):
-                state_pool.harvest(json_body)
-        except Exception:
-            json_body = None
+        if not truncated:
+            try:
+                json_body = response.json()
+                # Harvest entities into StatePool for downstream DAG tests
+                if resp_status in (200, 201):
+                    state_pool.harvest(json_body)
+            except Exception:
+                json_body = None
 
         trace = HTTPTrace(
             request_method=method,

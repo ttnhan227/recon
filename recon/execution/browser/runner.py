@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import inspect
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -173,7 +174,16 @@ class BrowserTestRunner:
                     )
                 )
             elif atype == AssertionType.RESPONSE_TIME_MS:
-                passed = duration_ms <= float(a.expected)
+                op = (getattr(a, "operator", "lte") or "lte").lower()
+                threshold = float(a.expected)
+                if op == "lt":
+                    passed = duration_ms < threshold
+                elif op == "gt":
+                    passed = duration_ms > threshold
+                elif op == "gte":
+                    passed = duration_ms >= threshold
+                else:
+                    passed = duration_ms <= threshold
                 results.append(
                     AssertionResult(
                         assertion_type=atype,
@@ -182,7 +192,11 @@ class BrowserTestRunner:
                         expected=a.expected,
                         actual=round(duration_ms, 2),
                         message=(
-                            f"Browser action duration {duration_ms:.1f}ms exceeded limit {a.expected}ms"
+                            (
+                                f"Browser action duration {duration_ms:.1f}ms exceeded limit {a.expected}ms"
+                                if op in ("lt", "lte")
+                                else f"Browser action duration {duration_ms:.1f}ms did not satisfy {op} {a.expected}ms"
+                            )
                             if not passed
                             else None
                         ),
@@ -191,8 +205,14 @@ class BrowserTestRunner:
             elif atype == AssertionType.TEXT_VISIBLE:
                 expected_text = str(a.expected)
                 try:
-                    content = await page.content()
-                    passed = expected_text in content
+                    locator_or_coro = page.get_by_text(expected_text)
+                    if inspect.isawaitable(locator_or_coro):
+                        if hasattr(locator_or_coro, "close"):
+                            locator_or_coro.close()
+                        content = await page.content()
+                        passed = expected_text in content
+                    else:
+                        passed = bool(await locator_or_coro.first.is_visible())
                 except Exception:
                     passed = False
                 results.append(
@@ -270,6 +290,28 @@ class BrowserTestRunner:
                 value = step.value or ""
                 await page.wait_for_selector(selector, timeout=timeout_ms, state="visible")
                 await page.fill(selector, value)
+
+            elif stype == "browser_select":
+                selector = step.selector
+                value = step.value or ""
+                await page.wait_for_selector(selector, timeout=timeout_ms, state="visible")
+                await page.select_option(selector, value)
+
+            elif stype in ("browser_checkbox", "browser_check"):
+                selector = step.selector
+                value = (step.value or "true").lower()
+                await page.wait_for_selector(selector, timeout=timeout_ms, state="visible")
+                if value in ("false", "0", "no", "off", "uncheck"):
+                    await page.uncheck(selector)
+                else:
+                    await page.check(selector)
+
+            elif stype == "browser_wait":
+                if step.selector:
+                    await page.wait_for_selector(step.selector, timeout=timeout_ms, state="visible")
+                else:
+                    wait_secs = float(step.value) if step.value else 1.0
+                    await asyncio.sleep(wait_secs)
 
             elif stype == "browser_click":
                 selector = step.selector

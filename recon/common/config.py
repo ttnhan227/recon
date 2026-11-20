@@ -101,6 +101,7 @@ class ReconSettings(BaseSettings):
 
     # Security
     allow_localhost: bool = True
+    verify_tls: bool = True
     allowed_hosts: list[str] = Field(default_factory=list)
     blocked_hosts: list[str] = Field(
         default_factory=lambda: [

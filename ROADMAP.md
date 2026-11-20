@@ -10,7 +10,7 @@ Recon is alpha software. The current priority is a dependable path from an OpenA
 - Optional Playwright page discovery and browser checks
 - Deterministic failure classification and self-contained HTML/JSON reports
 - Optional LLM-assisted test generation and failure analysis
-- Local reproducible demo and PyPI distribution
+- PyPI distribution and Docker-ready execution
 
 ## Next
 

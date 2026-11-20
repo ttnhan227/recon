@@ -204,7 +204,10 @@ class ReconBrowserAgent:
                 return True, None
 
             elif act == "navigate":
+                from recon.common.security import validate_target_url
+
                 target_url = action.url or ""
+                validate_target_url(target_url)
                 await page.goto(target_url, timeout=timeout_ms, wait_until="domcontentloaded")
                 return True, None
 
@@ -237,6 +240,9 @@ class ReconBrowserAgent:
         """Executes the ReAct browser agent loop toward the given goal."""
         from playwright.async_api import async_playwright
 
+        from recon.common.security import validate_target_url
+
+        validate_target_url(start_url)
         start_time = time.perf_counter()
         steps: list[AgentStep] = []
         evidence = BrowserEvidenceCollector(run_id=self.run_id, output_dir=self.output_dir)

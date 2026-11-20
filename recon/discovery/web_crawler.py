@@ -227,6 +227,14 @@ class WebCrawler:
                         required = await inp_handle.get_attribute("required") is not None
                         placeholder = await inp_handle.get_attribute("placeholder")
                         default_val = await inp_handle.get_attribute("value")
+                        options: list[str] = []
+                        if tag == "select":
+                            for opt_handle in await inp_handle.query_selector_all("option"):
+                                val = await opt_handle.get_attribute("value")
+                                if not val:
+                                    val = await opt_handle.inner_text()
+                                if val and val.strip():
+                                    options.append(val.strip())
                         inp_id = await inp_handle.get_attribute("id")
                         selector = f"#{inp_id}" if inp_id else f"[name='{name}']"
 
@@ -237,11 +245,24 @@ class WebCrawler:
                                 required=required,
                                 placeholder=placeholder,
                                 default_value=default_val,
+                                options=options,
                                 selector=selector,
                             )
                         )
                     except Exception:
                         pass
+
+                submit_btn = await f_handle.query_selector(
+                    "button[type='submit'], input[type='submit']"
+                )
+                submit_selector = None
+                if submit_btn:
+                    sub_id = await submit_btn.get_attribute("id")
+                    submit_selector = (
+                        f"#{sub_id}"
+                        if sub_id
+                        else f"{form_selector} button[type='submit'], {form_selector} input[type='submit']"
+                    )
 
                 forms.append(
                     DiscoveredForm(
@@ -249,6 +270,7 @@ class WebCrawler:
                         method=form_method,
                         selector=form_selector,
                         fields=fields,
+                        submit_selector=submit_selector,
                         location_url=url,
                         is_visible=is_vis,
                     )

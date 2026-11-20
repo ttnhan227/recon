@@ -90,3 +90,42 @@ async def test_api_runner_detects_500_failure():
         assert res.status == TestStatus.FAILED
         assert res.failure_evidence is not None
         assert res.failure_evidence.http_traces[0].response_status == 500
+
+
+@pytest.mark.asyncio
+async def test_api_runner_enforces_max_response_size_and_verify_tls_default(monkeypatch):
+    from recon.common.config import settings
+
+    assert settings.verify_tls is True
+    monkeypatch.setattr(settings, "max_response_size_bytes", 16)
+
+    def handler(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, text="A" * 100)
+
+    transport = httpx.MockTransport(handler)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        runner = APITestRunner(client=client)
+        tc = TestCase(
+            id="INT-SIZE-01",
+            name="Large Body",
+            category=TestCategory.HAPPY_PATH,
+            test_type=TestType.API,
+            target="http://test/big",
+            steps=[
+                TestStep(
+                    name="Get big",
+                    step_type="http_request",
+                    endpoint="http://test/big",
+                    method="GET",
+                    assertions=[
+                        StepAssertion(assertion_type=AssertionType.STATUS_CODE, expected=200)
+                    ],
+                )
+            ],
+        )
+        res = await runner.execute_test(tc)
+        assert res.status == TestStatus.PASSED
+        trace = res.step_results[0].http_trace
+        assert trace is not None
+        assert isinstance(trace.response_body, str)
+        assert len(trace.response_body) <= 16

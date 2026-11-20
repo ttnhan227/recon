@@ -10,7 +10,9 @@ from rich.syntax import Syntax
 
 from recon.common.config import get_project_slug, settings
 from recon.common.logging import console
-from recon.common.models import TestResult, TestStatus
+from recon.common.models import TestCase, TestCategory, TestResult, TestStatus, TestStep, TestType
+from recon.common.security import validate_target_url
+from recon.execution.api.runner import APITestRunner
 from recon.healing.applier import PatchApplier
 from recon.healing.locator import CodeLocator
 from recon.healing.patcher import AIPatchGenerator
@@ -117,14 +119,37 @@ class SelfHealingEngine:
             return match.group(1), match.group(2)
         return None
 
+    @staticmethod
+    def _strip_redacted(value: object) -> object:
+        """Removes redacted placeholder values so verification never sends '***REDACTED***'."""
+        if isinstance(value, dict):
+            return {
+                k: SelfHealingEngine._strip_redacted(v)
+                for k, v in value.items()
+                if v != "***REDACTED***"
+            }
+        if isinstance(value, list):
+            return [
+                SelfHealingEngine._strip_redacted(item)
+                for item in value
+                if item != "***REDACTED***"
+            ]
+        return None if value == "***REDACTED***" else value
+
     async def heal_failures(
         self,
         results: list[TestResult],
         test_id_filter: str | None = None,
         auto_apply: bool = False,
         auto_verify: bool = True,
+        test_cases: list[TestCase] | dict[str, TestCase] | None = None,
     ) -> int:
         """Processes failing tests with deduplication, generates patches, and optionally applies/verifies them."""
+        test_case_map: dict[str, TestCase] = {}
+        if isinstance(test_cases, dict):
+            test_case_map = dict(test_cases)
+        elif isinstance(test_cases, list):
+            test_case_map = {tc.id: tc for tc in test_cases}
         all_failed = [
             r
             for r in results
@@ -221,35 +246,62 @@ class SelfHealingEngine:
                     )
                     fixed_count += 1
 
-                    if auto_verify and res.failure_evidence and res.failure_evidence.http_traces:
-                        trace = res.failure_evidence.http_traces[0]
-                        console.print(f"[dim]Re-verifying fix against {trace.request_url}...[/dim]")
-                        # Minimal re-run check
-                        try:
-                            import httpx
-
-                            async with httpx.AsyncClient(timeout=10.0) as client:
-                                resp = await client.request(
-                                    method=method,
-                                    url=trace.request_url,
-                                    headers=trace.request_headers,
-                                    json=trace.request_body
-                                    if isinstance(trace.request_body, (dict, list))
-                                    else None,
-                                    content=trace.request_body
-                                    if isinstance(trace.request_body, str)
-                                    else None,
-                                )
-                                if resp.status_code != 500:
+                    if auto_verify and (
+                        res.test_id in test_case_map
+                        or (res.failure_evidence and res.failure_evidence.http_traces)
+                    ):
+                        verify_tc = test_case_map.get(res.test_id)
+                        if verify_tc is None and res.failure_evidence:
+                            trace = res.failure_evidence.http_traces[0]
+                            validate_target_url(trace.request_url)
+                            clean_headers = {
+                                k: str(v)
+                                for k, v in (trace.request_headers or {}).items()
+                                if v != "***REDACTED***"
+                            }
+                            clean_body = self._strip_redacted(trace.request_body)
+                            verify_tc = TestCase(
+                                id=f"verify-{res.test_id}",
+                                name=f"Verify {res.test_name}",
+                                category=TestCategory.REGRESSION,
+                                test_type=TestType.API,
+                                target=trace.request_url,
+                                steps=[
+                                    TestStep(
+                                        name="Verify fix",
+                                        method=method,
+                                        endpoint=trace.request_url,
+                                        headers=clean_headers,
+                                        body=clean_body,
+                                    )
+                                ],
+                            )
+                        if verify_tc is not None:
+                            target_label = (
+                                verify_tc.steps[0].endpoint if verify_tc.steps else verify_tc.target
+                            )
+                            console.print(f"[dim]Re-verifying fix against {target_label}...[/dim]")
+                            try:
+                                runner = APITestRunner()
+                                verify_res = await runner.execute_test(verify_tc)
+                                resp_status = None
+                                if (
+                                    verify_res.step_results
+                                    and verify_res.step_results[0].http_trace
+                                ):
+                                    resp_status = verify_res.step_results[
+                                        0
+                                    ].http_trace.response_status
+                                if resp_status is not None and resp_status != 500:
                                     console.print(
-                                        f"[bold green]✓ VERIFICATION PASSED: Endpoint returned HTTP {resp.status_code} (Clean response, no 500 crash!)[/bold green]\n"
+                                        f"[bold green]✓ VERIFICATION PASSED: Endpoint returned HTTP {resp_status} (Clean response, no 500 crash!)[/bold green]\n"
                                     )
                                 else:
                                     console.print(
                                         "[bold yellow]⚠ Verification returned HTTP 500: Further refinements may be needed.[/bold yellow]\n"
                                     )
-                        except Exception as ve:
-                            console.print(f"[dim]Verification ping completed: {ve}[/dim]\n")
+                            except Exception as ve:
+                                console.print(f"[dim]Verification ping completed: {ve}[/dim]\n")
             else:
                 console.print(f"[dim]Skipped applying patch for {res.test_id}[/dim]\n")
 

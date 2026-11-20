@@ -383,6 +383,29 @@ class TestSuiteGenerator:
             # Fill each field
             for field in form.fields:
                 if field.selector and field.field_type not in ("submit", "hidden"):
+                    if field.field_type == "select":
+                        if not field.options:
+                            continue
+                        form_steps.append(
+                            TestStep(
+                                name=f"Select option for {field.name}",
+                                step_type="browser_select",
+                                selector=field.selector,
+                                value=field.options[0],
+                            )
+                        )
+                        continue
+                    if field.field_type == "checkbox":
+                        form_steps.append(
+                            TestStep(
+                                name=f"Check {field.name}",
+                                step_type="browser_checkbox",
+                                selector=field.selector,
+                                value="true",
+                            )
+                        )
+                        continue
+
                     if field.field_type == "number":
                         fill_val = "5"
                     elif field.field_type == "email":

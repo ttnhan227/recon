@@ -6,17 +6,10 @@ API teams often have an OpenAPI document but still rely on a narrow set of hand-
 
 ```bash
 python -m pip install recon-qa
-recon demo
+recon test http://localhost:8000 --no-ai
 ```
 
-The demo does not call a hosted service or require an AI key. It starts a deliberately defective FastAPI application on localhost, discovers its OpenAPI document, generates schema-driven checks, executes them, and writes an HTML report.
-
-In the verified `0.2.1` demo run, Recon generated 35 checks and identified two deliberately planted problems:
-
-1. An order endpoint returned HTTP 500 when an optional currency value was empty.
-2. An endpoint described as protected returned secrets without rejecting missing credentials.
-
-These are not hard-coded demo assertions. They travel through the same discovery, planning, execution, classification, and reporting pipeline used for another target.
+Recon discovers your application's OpenAPI document, generates schema-driven checks, executes them, and writes a self-contained HTML report without requiring an AI key.
 
 ## Run it against an application you control
 
@@ -42,4 +35,4 @@ Generated data cannot infer undocumented business rules. Custom authentication a
 
 ## Help shape the next release
 
-Try the local demo first. If you then run Recon against a real API, use the [trial feedback form](https://github.com/ttnhan227/recon/issues/new?template=feedback.yml) to share the framework or OpenAPI generator, where the workflow succeeded, and the first point of friction. Sanitized minimal specifications are the most useful compatibility reports.
+If you run Recon against an API you control, use the [trial feedback form](https://github.com/ttnhan227/recon/issues/new?template=feedback.yml) to share the framework or OpenAPI generator, where the workflow succeeded, and the first point of friction. Sanitized minimal specifications are the most useful compatibility reports.

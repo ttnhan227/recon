@@ -14,7 +14,7 @@ def extract_json_path(data: Any, path: str) -> Any:
     if not isinstance(data, (dict, list)):
         return None
 
-    clean_path = path.lstrip("$.").strip()
+    clean_path = path.strip().removeprefix("$.")
     if not clean_path:
         return data
 
@@ -81,15 +81,19 @@ def evaluate_assertion(
     # 2. RESPONSE_TIME_MS
     elif assertion.assertion_type == AssertionType.RESPONSE_TIME_MS:
         actual_lat = latency_ms
-        if op in ("lte", "lt"):
-            passed = actual_lat <= expected
+        if op == "lt":
+            passed = actual_lat < expected
+        elif op == "gt":
+            passed = actual_lat > expected
+        elif op == "gte":
+            passed = actual_lat >= expected
         else:
             passed = actual_lat <= expected
 
         msg = (
             assertion.message
             if assertion.message and not passed
-            else f"Response time {actual_lat:.1f}ms exceeds threshold {expected}ms"
+            else f"Response time {actual_lat:.1f}ms failed {op} {expected}ms"
         )
         return AssertionResult(
             assertion_type=AssertionType.RESPONSE_TIME_MS,

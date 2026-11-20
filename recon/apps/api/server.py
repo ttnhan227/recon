@@ -1,13 +1,15 @@
 from __future__ import annotations
 
+import re
 from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI, HTTPException
-from fastapi.responses import HTMLResponse
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import BaseModel, Field
 
 from recon.common.config import get_project_slug, settings
+from recon.common.exceptions import DiscoveryError, SSRFSecurityError, TargetUnreachableError
 from recon.common.models import RunSummary
 from recon.orchestration.orchestrator import TestOrchestrator
 from recon.persistence.database import DatabaseManager
@@ -19,11 +21,35 @@ api_app = FastAPI(
 )
 
 
+@api_app.exception_handler(SSRFSecurityError)
+async def _ssrf_exception_handler(_request: Request, exc: SSRFSecurityError) -> JSONResponse:
+    return JSONResponse(status_code=400, content={"detail": str(exc)})
+
+
+@api_app.exception_handler(DiscoveryError)
+async def _discovery_exception_handler(_request: Request, exc: DiscoveryError) -> JSONResponse:
+    return JSONResponse(status_code=422, content={"detail": str(exc)})
+
+
+@api_app.exception_handler(TargetUnreachableError)
+async def _unreachable_exception_handler(
+    _request: Request, exc: TargetUnreachableError
+) -> JSONResponse:
+    return JSONResponse(status_code=502, content={"detail": str(exc)})
+
+
+def _validate_run_id(run_id: str) -> str:
+    """Rejects path-traversal or malformed run IDs before filesystem lookup."""
+    if not run_id or ".." in run_id or not re.fullmatch(r"[A-Za-z0-9._-]+", run_id):
+        raise HTTPException(status_code=400, detail="Invalid run_id")
+    return run_id
+
+
 class TriggerRunRequest(BaseModel):
     target_url: str = Field(description="Target application URL")
     spec_url: str | None = None
     enable_browser: bool = False
-    concurrency: int = 4
+    concurrency: int = Field(default=4, ge=1, le=32)
     enable_ai: bool = True
     tags: list[str] | None = None
 
@@ -61,6 +87,7 @@ async def trigger_test_run(req: TriggerRunRequest):
 @api_app.get("/api/v1/runs/{run_id}", response_model=RunSummary)
 async def get_run_details(run_id: str):
     """Retrieves RunSummary for a specific run_id."""
+    _validate_run_id(run_id)
     db = DatabaseManager()
     try:
         clean_id = run_id.removeprefix("run-")
@@ -77,6 +104,7 @@ async def get_run_details(run_id: str):
 @api_app.get("/api/v1/runs/{run_id}/report", response_class=HTMLResponse)
 async def get_run_report(run_id: str):
     """Retrieves the standalone HTML test report for a specific run_id."""
+    _validate_run_id(run_id)
     clean_id = run_id.removeprefix("run-")
     search_dirs = [settings.reports_dir, Path("./reports").resolve()]
 
@@ -84,11 +112,16 @@ async def get_run_report(run_id: str):
     for s_dir in search_dirs:
         if not s_dir.exists():
             continue
-        direct = s_dir / f"run-{clean_id}" / "report.html"
-        if direct.exists():
+        resolved_base = s_dir.resolve()
+        direct = (s_dir / f"run-{clean_id}" / "report.html").resolve()
+        if direct.is_relative_to(resolved_base) and direct.exists():
             report_file = direct
             break
-        matches = list(s_dir.glob(f"**/run-{clean_id}/report.html"))
+        matches = [
+            m.resolve()
+            for m in s_dir.glob(f"**/run-{clean_id}/report.html")
+            if m.resolve().is_relative_to(resolved_base)
+        ]
         if matches:
             report_file = matches[0]
             break

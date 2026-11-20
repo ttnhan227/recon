@@ -44,7 +44,7 @@ services:
       - RECON_REPORTS_DIR=/app/reports
     volumes:
       - ./reports:/app/reports
-    command: ["api", "--host", "0.0.0.0", "--port", "8501"]
+    command: ["serve-api", "--host", "0.0.0.0", "--port", "8501"]
     profiles:
       - api
       - full

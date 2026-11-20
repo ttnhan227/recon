@@ -87,7 +87,7 @@ class VectorStore:
             return ""
         scored.sort(key=lambda x: -x[0])
         top_indices = [i for _, i in scored[:top_k]]
-        return "\\n\\n".join(self.documents[i] for i in top_indices)
+        return "\n\n".join(self.documents[i] for i in top_indices)
 
 
 class KnowledgeBase:

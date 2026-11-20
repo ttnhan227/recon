@@ -14,8 +14,7 @@ RUN groupadd -r demo && useradd -r -g demo -u 1000 -d /app -s /bin/bash demouser
 RUN pip install --no-cache-dir fastapi uvicorn pydantic
 
 # Copy project files
-COPY pyproject.toml README.md ./
-COPY recon/ ./recon/
+COPY docker/demo_target.py ./demo_target.py
 
 RUN chown -R demouser:demo /app
 
@@ -26,4 +25,4 @@ EXPOSE 8000
 HEALTHCHECK --interval=5s --timeout=3s --retries=5 \
     CMD python -c 'import urllib.request; urllib.request.urlopen("http://localhost:8000/api/health")' || exit 1
 
-CMD ["uvicorn", "recon.demo_app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "demo_target:app", "--host", "0.0.0.0", "--port", "8000"]

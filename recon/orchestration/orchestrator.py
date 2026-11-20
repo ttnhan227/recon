@@ -12,6 +12,7 @@ import httpx
 
 from recon.analysis.classifier import DeterministicFailureClassifier
 from recon.analysis.rca_engine import RootCauseAnalyzer
+from recon.common.config import settings
 from recon.common.logging import current_run_id, logger
 from recon.common.models import (
     RunSummary,
@@ -23,6 +24,7 @@ from recon.common.models import (
 from recon.discovery.endpoint_detector import discover_application
 from recon.discovery.models import DiscoveredApplication
 from recon.llm.failure_analyzer import AIFailureAnalyzer
+from recon.llm.provider import MockProvider
 from recon.llm.test_generator import AITestGenerator
 from recon.orchestration.state_pool import StatePool
 from recon.orchestration.worker_pool import WorkerPool
@@ -126,7 +128,7 @@ class TestOrchestrator:
         test_email = f"recon.qa.{uuid.uuid4().hex[:6]}@example.com"
         test_password = "Password123!"
 
-        async with httpx.AsyncClient(timeout=10.0, verify=False) as client:
+        async with httpx.AsyncClient(timeout=10.0, verify=settings.verify_tls) as client:
             # 1. Try Dynamic Registration first if endpoint exists
             if register_ep:
                 reg_url = urljoin(base_url + "/", register_ep.path.lstrip("/"))
@@ -300,9 +302,12 @@ class TestOrchestrator:
 
             # AI exploratory test generation
             if self.enable_ai:
-                logger.info("Generating exploratory test cases with AI...")
-                ai_tests = await self.ai_generator.generate_exploratory_tests(app)
-                tests_to_run.extend(ai_tests)
+                if isinstance(self.ai_generator.provider, MockProvider):
+                    logger.info("Skipping AI exploratory test generation for MockProvider.")
+                else:
+                    logger.info("Generating exploratory test cases with AI...")
+                    ai_tests = await self.ai_generator.generate_exploratory_tests(app)
+                    tests_to_run.extend(ai_tests)
 
         # Filter by tags if provided
         if tags:

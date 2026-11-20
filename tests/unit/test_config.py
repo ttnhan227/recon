@@ -58,6 +58,23 @@ def test_set_model_command():
         mock_update.assert_called_once_with({"RECON_GEMINI_MODEL": "gemini-4-argon"}, is_local=True)
 
 
+def test_set_model_command_ollama_uses_recon_llm_model(monkeypatch):
+    from unittest.mock import patch
+
+    from recon.apps.cli.config_cli import set_model_command
+    from recon.common.config import settings
+    from recon.llm.provider import OpenAICompatibleProvider, get_llm_provider
+
+    with patch("recon.apps.cli.config_cli.update_env_file") as mock_update:
+        set_model_command(model="llama3.2:latest", provider="ollama", local=True)
+        mock_update.assert_called_once_with({"RECON_LLM_MODEL": "llama3.2:latest"}, is_local=True)
+
+    monkeypatch.setattr(settings, "custom_model", "llama3.2:latest")
+    provider = get_llm_provider("ollama")
+    assert isinstance(provider, OpenAICompatibleProvider)
+    assert provider.model == "llama3.2:latest"
+
+
 def test_api_key_connection_verification_deepseek():
     from unittest.mock import AsyncMock, patch
 

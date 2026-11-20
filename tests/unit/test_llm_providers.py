@@ -107,3 +107,13 @@ async def test_mock_provider():
     mock = MockProvider()
     resp = await mock.complete("generate exploratory test cases for /api/users")
     assert "test_cases" in resp
+
+
+def test_vector_store_query_joins_with_real_newlines():
+    from recon.llm.provider import VectorStore
+
+    store = VectorStore()
+    store.add(["alpha document", "alpha second document"])
+    result = store.query("alpha", top_k=2)
+    assert "\n\n" in result
+    assert "\\n\\n" not in result

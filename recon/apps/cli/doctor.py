@@ -135,7 +135,7 @@ async def run_doctor(target_url: str | None = None) -> bool:
     # 6. Target Connectivity (if specified)
     if target_url:
         try:
-            async with httpx.AsyncClient(timeout=4.0, verify=False) as client:
+            async with httpx.AsyncClient(timeout=4.0, verify=settings.verify_tls) as client:
                 resp = await client.get(target_url)
                 table.add_row(
                     "Target Reachability",

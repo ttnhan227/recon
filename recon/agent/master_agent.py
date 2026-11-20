@@ -113,7 +113,10 @@ class ReconMasterAgent:
         payload: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """Probes a backend API endpoint."""
+        from recon.common.security import validate_target_url
+
         target_url = url.rstrip("/") + "/" + endpoint.lstrip("/")
+        validate_target_url(target_url)
         console.print(
             f"[bold cyan]🔍 Probing API:[/bold cyan] [bold green]{method.upper()}[/bold green] {target_url}"
         )

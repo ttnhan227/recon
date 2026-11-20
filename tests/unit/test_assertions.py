@@ -50,3 +50,23 @@ def test_json_schema_assertion():
     res_bad = evaluate_assertion(a, 200, {}, {"id": 1}, "", 10.0)
     assert res_bad.passed is False
     assert "status" in (res_bad.message or "")
+
+
+def test_extract_json_path_removeprefix():
+    data = {"$id": 123, "meta": {"ok": True}}
+    assert extract_json_path(data, "$id") == 123
+    assert extract_json_path(data, "$.meta.ok") is True
+
+
+def test_response_time_ms_operators():
+    lt = StepAssertion(assertion_type=AssertionType.RESPONSE_TIME_MS, expected=100, operator="lt")
+    assert evaluate_assertion(lt, 200, {}, {}, "", 99.0).passed is True
+    assert evaluate_assertion(lt, 200, {}, {}, "", 100.0).passed is False
+
+    gt = StepAssertion(assertion_type=AssertionType.RESPONSE_TIME_MS, expected=100, operator="gt")
+    assert evaluate_assertion(gt, 200, {}, {}, "", 101.0).passed is True
+    assert evaluate_assertion(gt, 200, {}, {}, "", 100.0).passed is False
+
+    gte = StepAssertion(assertion_type=AssertionType.RESPONSE_TIME_MS, expected=100, operator="gte")
+    assert evaluate_assertion(gte, 200, {}, {}, "", 100.0).passed is True
+    assert evaluate_assertion(gte, 200, {}, {}, "", 99.9).passed is False

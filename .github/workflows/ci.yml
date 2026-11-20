@@ -98,9 +98,9 @@ jobs:
           pip install -e ".[browser,dev]"
           python -m playwright install --with-deps chromium
 
-      - name: Launch Demo Application
+      - name: Launch Demo Target Application
         run: |
-          python -m uvicorn recon.demo_app.main:app --host 127.0.0.1 --port 8000 &
+          PYTHONPATH=docker python -m uvicorn demo_target:app --host 127.0.0.1 --port 8000 &
           sleep 4
 
       - name: Run Autonomous QA Agent against Demo App

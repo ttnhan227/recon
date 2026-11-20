@@ -526,7 +526,10 @@ def set_model_command(
         else:
             model = Prompt.ask(f"Enter model identifier for {active_provider}")
 
-    update_key = f"RECON_{active_provider.upper()}_MODEL"
+    if active_provider in ("ollama", "local", "lmstudio", "lm-studio", "custom", "compatible"):
+        update_key = "RECON_LLM_MODEL"
+    else:
+        update_key = f"RECON_{active_provider.upper()}_MODEL"
     saved_path = update_env_file({update_key: str(model)}, is_local=local)
     console.print(
         f"[bold green]✓ Switched active model for {active_provider.capitalize()} to:[/bold green] [bold cyan]{model}[/bold cyan] [dim]({saved_path})[/dim]"
