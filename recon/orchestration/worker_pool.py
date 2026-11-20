@@ -17,6 +17,7 @@ from recon.common.models import (
 )
 from recon.execution.api.runner import APITestRunner
 from recon.execution.browser.runner import BrowserTestRunner
+from recon.orchestration.state_pool import StatePool
 
 
 class WorkerPool:
@@ -28,15 +29,17 @@ class WorkerPool:
         run_id: str = "default",
         output_dir: Path | str = "./reports",
         api_client: Any = None,
+        state_pool: StatePool | None = None,
         on_test_start: Callable[[TestCase], Coroutine[Any, Any, None]] | None = None,
         on_test_complete: Callable[[TestCase, TestResult], Coroutine[Any, Any, None]] | None = None,
     ):
         self.concurrency = max(1, concurrency)
         self.run_id = run_id
         self.output_dir = output_dir
+        self.state_pool = state_pool or StatePool.get_instance()
         self.on_test_start = on_test_start
         self.on_test_complete = on_test_complete
-        self.api_runner = APITestRunner(client=api_client)
+        self.api_runner = APITestRunner(client=api_client, state_pool=self.state_pool)
         self.browser_runner = BrowserTestRunner(run_id=run_id, output_dir=output_dir)
         self._cancelled = False
 

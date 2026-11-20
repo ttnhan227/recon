@@ -30,8 +30,13 @@ from recon.orchestration.state_pool import StatePool
 class APITestRunner:
     """Deterministic HTTP API test execution engine with DAG state chaining."""
 
-    def __init__(self, client: httpx.AsyncClient | None = None):
+    def __init__(
+        self,
+        client: httpx.AsyncClient | None = None,
+        state_pool: StatePool | None = None,
+    ):
         self._external_client = client
+        self._state_pool = state_pool or StatePool.get_instance()
 
     async def execute_test(self, test: TestCase) -> TestResult:
         """Executes an API TestCase across its steps."""
@@ -114,7 +119,7 @@ class APITestRunner:
         max_retries: int = 0,
     ) -> tuple[StepResult, HTTPTrace | None, dict[str, Any]]:
         """Executes a single HTTP step with dynamic DAG state substitution, retries and assertion evaluations."""
-        state_pool = StatePool.get_instance()
+        state_pool = self._state_pool
         endpoint = step.endpoint or ""
         method = (step.method or "GET").upper()
         headers = dict(step.headers)

@@ -90,9 +90,13 @@ class TestOrchestrator:
         return None
 
     async def _auto_authenticate(
-        self, target_url: str, app: DiscoveredApplication
+        self,
+        target_url: str,
+        app: DiscoveredApplication,
+        state_pool: StatePool | None = None,
     ) -> dict[str, str]:
         """Attempts intelligent pre-flight schema-driven registration and login to capture dynamic JWT tokens."""
+        target_pool = state_pool or StatePool.get_instance()
         auth_headers: dict[str, str] = {}
         base_url = target_url.rstrip("/")
 
@@ -150,7 +154,7 @@ class TestOrchestrator:
                                 "Authentication setup: captured JWT token from registration."
                             )
                             auth_headers["Authorization"] = f"Bearer {token}"
-                            StatePool.get_instance().auth_token = token
+                            target_pool.auth_token = token
                             return auth_headers
                 except Exception as e:
                     logger.debug(f"Auto-registration attempt notice: {e}")
@@ -176,7 +180,7 @@ class TestOrchestrator:
                         if token:
                             logger.info("Authentication setup: captured JWT token from JSON login.")
                             auth_headers["Authorization"] = f"Bearer {token}"
-                            StatePool.get_instance().auth_token = token
+                            target_pool.auth_token = token
                             return auth_headers
                 except Exception:
                     pass
@@ -194,7 +198,7 @@ class TestOrchestrator:
                                 "Authentication setup: captured OAuth2 token from form login."
                             )
                             auth_headers["Authorization"] = f"Bearer {token}"
-                            StatePool.get_instance().auth_token = token
+                            target_pool.auth_token = token
                             return auth_headers
                 except Exception:
                     pass
@@ -264,8 +268,8 @@ class TestOrchestrator:
         6. Persist results
         7. Generate JSON & HTML reports
         """
-        # Reset runtime DAG state pool
-        StatePool.get_instance().reset()
+        # Scope runtime DAG state pool per pipeline run
+        state_pool = StatePool()
 
         run_id = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S") + "-" + uuid.uuid4().hex[:6]
         current_run_id.set(run_id)
@@ -288,7 +292,7 @@ class TestOrchestrator:
             # Attempt registration/login setup when no authorization header is provided.
             effective_headers = dict(headers or {})
             if not any(k.lower() == "authorization" for k in effective_headers):
-                auto_headers = await self._auto_authenticate(target_url, app)
+                auto_headers = await self._auto_authenticate(target_url, app, state_pool=state_pool)
                 effective_headers.update(auto_headers)
 
             planner = TestSuiteGenerator(app, default_headers=effective_headers)
@@ -352,6 +356,7 @@ class TestOrchestrator:
             run_id=run_id,
             output_dir=self.output_dir,
             api_client=self.external_api_client,
+            state_pool=state_pool,
             on_test_complete=on_progress,
         )
 

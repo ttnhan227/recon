@@ -9,9 +9,10 @@ class StatePool:
     """Thread-safe runtime state store for DAG dependency chaining and entity propagation."""
 
     _instance: StatePool | None = None
-    _lock = threading.Lock()
+    _instance_lock = threading.Lock()
 
     def __init__(self) -> None:
+        self._lock = threading.Lock()
         self._store: dict[str, list[str]] = {
             "id": [],
             "accountId": [],
@@ -25,7 +26,7 @@ class StatePool:
 
     @classmethod
     def get_instance(cls) -> StatePool:
-        with cls._lock:
+        with cls._instance_lock:
             if cls._instance is None:
                 cls._instance = cls()
             return cls._instance
@@ -161,37 +162,51 @@ class StatePool:
 
         return url
 
+    @staticmethod
+    def _tokenize_key(key: str) -> list[str]:
+        snake = re.sub(r"([a-z0-9])([A-Z])", r"\1_\2", key).replace("-", "_").lower()
+        return [tok for tok in snake.split("_") if tok]
+
     def substitute_payload(self, payload: Any) -> Any:
-        """Substitutes payload references with real harvested entities."""
+        """Substitutes payload ID references with real harvested entities."""
         if not isinstance(payload, dict):
             return payload
 
         mutated = dict(payload)
         for k, v in mutated.items():
-            k_lower = k.lower()
             if isinstance(v, dict):
                 mutated[k] = self.substitute_payload(v)
             elif isinstance(v, list):
                 mutated[k] = [self.substitute_payload(item) for item in v]
             elif isinstance(v, str):
-                # E.g. sourceAccountId, destinationAccountId, customerId
-                if "source" in k_lower or "from" in k_lower:
+                tokens = self._tokenize_key(k)
+                if len(tokens) < 2 or tokens[-1] != "id":
+                    continue
+
+                # E.g. sourceAccountId, source_account_id, from_account_id, destination_account_id, to_account_id, *_id
+                if tokens[0] in {"source", "from"} and ("account" in tokens or len(tokens) == 2):
                     accounts = self.get_all("accountId")
                     if accounts:
                         mutated[k] = accounts[0]
-                elif "dest" in k_lower or "to" in k_lower or "target" in k_lower:
+                elif tokens[0] in {"dest", "destination", "to", "target"} and (
+                    "account" in tokens or len(tokens) == 2
+                ):
                     accounts = self.get_all("accountId")
                     if len(accounts) > 1:
                         mutated[k] = accounts[1]
                     elif accounts:
                         mutated[k] = accounts[0]
-                elif "customer" in k_lower:
+                elif "customer" in tokens:
                     cust_id = self.get_latest("customerId")
                     if cust_id:
                         mutated[k] = cust_id
-                elif "account" in k_lower:
+                elif "account" in tokens:
                     acc_id = self.get_latest("accountId")
                     if acc_id:
                         mutated[k] = acc_id
+                else:
+                    entity_id = self.get_latest(k)
+                    if entity_id:
+                        mutated[k] = entity_id
 
         return mutated
