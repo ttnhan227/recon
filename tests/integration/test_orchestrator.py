@@ -83,7 +83,6 @@ async def test_orchestrator_mock_provider_skips_bogus_exploratory_routes(tmp_pat
     async def fake_discover(**kwargs):
         return DiscoveredApplication(
             target_url="http://test",
-            base_url="http://test",
             endpoints=[
                 DiscoveredEndpoint(path="/ping", method="GET", summary="Ping"),
             ],

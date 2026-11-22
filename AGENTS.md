@@ -30,7 +30,7 @@ python -m pytest -p no:cacheprovider -v tests/
 # Static checks (all must pass with 0 issues)
 ruff check .
 ruff format --check .
-mypy recon
+mypy recon tests
 ```
 
 ## 4. Verification & Reporting Notes

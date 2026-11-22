@@ -227,10 +227,18 @@ async def test_self_healing_verification_uses_unredacted_test_case(tmp_path, mon
                 )
             ]
 
-    class FakePatchGen:
-        async def generate_patch(self, res, ctx):
+    class FakePatchGen(AIPatchGenerator):
+        def __init__(self) -> None:
+            super().__init__(provider=MockProvider())
+
+        async def generate_patch(
+            self,
+            result: TestResult,
+            context: LocatedContext,
+            test: TestCase | None = None,
+        ) -> ProposedPatch | None:
             return ProposedPatch(
-                test_id=res.test_id,
+                test_id=result.test_id,
                 file_path=target_file,
                 relative_path="routes.py",
                 original_content="def handle():\n    return 500\n",
