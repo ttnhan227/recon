@@ -63,7 +63,7 @@ You only need the command above to get your testing done. These optional command
 | :--- | :--- |
 | `recon fix` | Automatically patch source code defects found in your test run |
 | `recon report` | Open the interactive HTML test report in your default browser |
-| `recon config` | Configure AI provider keys (`recon set-key`) or switch models (`recon model`) |
+| `recon config` | Configure AI provider keys (`recon config set-key`) or switch models (`recon config model`) |
 | `recon doctor` | Check runtime, Playwright Chromium setup, and system diagnostics |
 
 ---
@@ -110,6 +110,7 @@ flowchart TD
 - Applies bounded asynchronous concurrency.
 - Classifies HTTP, timeout, assertion, and security-related failures.
 - Produces standalone HTML reports and machine-readable JSON results.
+- Instruments 5-wave DAG execution with OpenTelemetry tracing, W3C `traceparent` propagation, and per-wave latency/p50/p95 report summaries.
 - Optionally crawls pages and runs Playwright browser checks.
 - Optionally asks a configured LLM for additional cases and failure explanations.
 
