@@ -88,6 +88,8 @@ Reports are stored under `~/.recon/reports/` by default. Use `--report-dir` to c
 
 ## Architecture & Execution Pipeline
 
+For full system architecture, ADRs, 5-wave DAG execution, SSRF/redaction guardrails, self-healing AST rollback, OpenTelemetry tracing, and failure recovery matrices, see [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md).
+
 ```mermaid
 flowchart TD
     Target["Target Web Application / API"] --> Discovery["Discovery Engine\n(OpenAPI 3.x Parser & Web Crawler)"]
