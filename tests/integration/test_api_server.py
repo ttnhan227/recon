@@ -101,3 +101,65 @@ async def test_api_server_rejects_traversal_run_id():
     async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
         resp = await client.get("/api/v1/runs/..etc..passwd/report")
         assert resp.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_api_server_x_trace_id_response_header():
+    transport = httpx.ASGITransport(app=api_app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
+        # Error response 404
+        resp_404 = await client.get("/api/v1/runs/nonexistent-run-1234")
+        assert resp_404.status_code == 404
+        assert "x-trace-id" in resp_404.headers
+        trace_id_val = resp_404.headers["x-trace-id"]
+        assert len(trace_id_val) == 32
+        assert int(trace_id_val, 16) > 0
+
+
+@pytest.mark.asyncio
+async def test_api_server_incoming_traceparent_propagation():
+    incoming_trace_id = "4bf92f3577b34da6a3ce929d0e0e4736"
+    incoming_span_id = "00f067aa0ba902b7"
+    traceparent_header = f"00-{incoming_trace_id}-{incoming_span_id}-01"
+
+    transport = httpx.ASGITransport(app=api_app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
+        resp = await client.get(
+            "/api/v1/runs/nonexistent-run-5678",
+            headers={"traceparent": traceparent_header},
+        )
+        assert resp.status_code == 404
+        assert "x-trace-id" in resp.headers
+        # Propagated trace_id should match the incoming traceparent trace_id
+        assert resp.headers["x-trace-id"] == incoming_trace_id
+
+
+@pytest.mark.asyncio
+async def test_api_server_post_runs_payload_trace_id(monkeypatch):
+    from datetime import datetime, timezone
+
+    from recon.common.models import RunSummary
+
+    fake_summary = RunSummary(
+        run_id="run-api-trace-001",
+        target_url="http://localhost:8000",
+        started_at=datetime.now(timezone.utc),
+        completed_at=datetime.now(timezone.utc),
+        duration_seconds=1.23,
+        total=1,
+        passed=1,
+        trace_id="1234567890abcdef1234567890abcdef",
+    )
+
+    async def fake_run(*args, **kwargs):
+        return fake_summary, []
+
+    monkeypatch.setattr("recon.apps.api.server.TestOrchestrator.run_pipeline", fake_run)
+
+    transport = httpx.ASGITransport(app=api_app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
+        resp = await client.post("/api/v1/runs", json={"target_url": "http://localhost:8000"})
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["trace_id"] == "1234567890abcdef1234567890abcdef"
+        assert "x-trace-id" in resp.headers

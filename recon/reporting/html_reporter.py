@@ -84,6 +84,45 @@ class HTMLReporter:
         else:
             cat_items_html = '<div class="tax-item"><span>General API Suite</span></div>'
 
+        # Format distributed tracing & latency breakdown
+        trace_meta_html = ""
+        if summary.trace_id:
+            safe_trace_id = html.escape(str(summary.trace_id))
+            trace_meta_html = f" &bull; Trace ID: <code>{safe_trace_id}</code>"
+
+        trace_summary_html = ""
+        if summary.trace_summary:
+            trace_items = []
+            phases = summary.trace_summary.get("phase_durations_ms", {})
+            for p_name, p_dur in phases.items():
+                trace_items.append(
+                    f'<div class="tax-item"><span class="tax-name">{html.escape(p_name)}</span>'
+                    f'<span class="tax-badge" aria-label="{p_dur} ms">{p_dur:.1f} ms</span></div>'
+                )
+            waves = summary.trace_summary.get("wave_durations_ms", {})
+            counts = summary.trace_summary.get("wave_counts", {})
+            for w_name, w_dur in sorted(waves.items()):
+                c_str = f" ({counts[w_name]} tests)" if w_name in counts else ""
+                trace_items.append(
+                    f'<div class="tax-item"><span class="tax-name">{html.escape(w_name)}{c_str}</span>'
+                    f'<span class="tax-badge" aria-label="{w_dur} ms">{w_dur:.1f} ms</span></div>'
+                )
+            p50 = summary.trace_summary.get("http_latency_p50_ms")
+            p95 = summary.trace_summary.get("http_latency_p95_ms")
+            if p50 is not None or p95 is not None:
+                p50_str = f"{p50:.1f} ms" if p50 is not None else "N/A"
+                p95_str = f"{p95:.1f} ms" if p95 is not None else "N/A"
+                trace_items.append(
+                    f'<div class="tax-item"><span class="tax-name">HTTP Latency (p50 / p95)</span>'
+                    f'<span class="tax-badge" aria-label="p50/p95">{p50_str} / {p95_str}</span></div>'
+                )
+            if trace_items:
+                trace_summary_html = (
+                    '<div class="breakdown-card"><h3>Distributed Tracing & Latency</h3><div class="tax-list">'
+                    + "".join(trace_items)
+                    + "</div></div>"
+                )
+
         return f"""<!DOCTYPE html>
 <html lang="en" class="dark">
 <head>
@@ -1185,7 +1224,7 @@ class HTMLReporter:
             <div class="title-block">
                 <h1>QA Test Report</h1>
                 <p class="title-meta">
-                    Target: <strong>{safe_target_url}</strong> &bull; Run ID: <code>{safe_run_id}</code>
+                    Target: <strong>{safe_target_url}</strong> &bull; Run ID: <code>{safe_run_id}</code>{trace_meta_html}
                 </p>
             </div>
         </div>
@@ -1250,6 +1289,7 @@ class HTMLReporter:
                     {cat_items_html}
                 </div>
             </div>
+            {trace_summary_html}
         </section>
 
         <!-- Test Results Section -->

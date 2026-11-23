@@ -23,14 +23,20 @@ class MarkdownReporter:
             f"**Target URL:** `{summary.target_url}`  ",
             f"**Run ID:** `{summary.run_id}`  ",
             f"**Duration:** `{summary.duration_seconds}s`  ",
-            "",
-            "## Execution Overview",
-            "",
-            "| Total Checks | Passed | Failed | Errors | Skipped | Status |",
-            "|:---:|:---:|:---:|:---:|:---:|:---:|",
-            f"| {summary.total} | {summary.passed} | {summary.failed} | {summary.errors} | {summary.skipped} | **{status_icon}** |",
-            "",
         ]
+        if summary.trace_id:
+            md.append(f"**Trace ID:** `{summary.trace_id}`  ")
+        md.extend(
+            [
+                "",
+                "## Execution Overview",
+                "",
+                "| Total Checks | Passed | Failed | Errors | Skipped | Status |",
+                "|:---:|:---:|:---:|:---:|:---:|:---:|",
+                f"| {summary.total} | {summary.passed} | {summary.failed} | {summary.errors} | {summary.skipped} | **{status_icon}** |",
+                "",
+            ]
+        )
 
         # Failure classification breakdown
         if summary.failure_breakdown:
@@ -47,6 +53,61 @@ class MarkdownReporter:
             ):
                 md.append(f"| `{category}` | {count} |")
             md.append("")
+
+        # Distributed tracing & latency summary
+        if summary.trace_summary:
+            md.extend(
+                [
+                    "## Distributed Tracing & Latency Summary",
+                    "",
+                ]
+            )
+            phases = summary.trace_summary.get("phase_durations_ms", {})
+            if phases:
+                md.extend(
+                    [
+                        "### Pipeline Phase Durations",
+                        "",
+                        "| Pipeline Phase | Duration |",
+                        "|---|:---:|",
+                    ]
+                )
+                for phase_name, dur_ms in phases.items():
+                    md.append(f"| `{phase_name}` | {dur_ms:.2f} ms |")
+                md.append("")
+
+            waves = summary.trace_summary.get("wave_durations_ms", {})
+            counts = summary.trace_summary.get("wave_counts", {})
+            if waves:
+                md.extend(
+                    [
+                        "### Wave Execution Latency",
+                        "",
+                        "| Wave | Test Count | Duration |",
+                        "|---|:---:|:---:|",
+                    ]
+                )
+                for w_key, dur_ms in sorted(waves.items()):
+                    c = counts.get(w_key, "-")
+                    md.append(f"| `{w_key}` | {c} | {dur_ms:.2f} ms |")
+                md.append("")
+
+            p50 = summary.trace_summary.get("http_latency_p50_ms")
+            p95 = summary.trace_summary.get("http_latency_p95_ms")
+            http_count = summary.trace_summary.get("http_requests_count", 0)
+            if http_count:
+                p50_str = f"{p50:.2f} ms" if p50 is not None else "N/A"
+                p95_str = f"{p95:.2f} ms" if p95 is not None else "N/A"
+                md.extend(
+                    [
+                        "### HTTP Request Latencies",
+                        "",
+                        f"- **Total HTTP Requests:** `{http_count}`",
+                        f"- **p50 Latency:** `{p50_str}`",
+                        f"- **p95 Latency:** `{p95_str}`",
+                        "",
+                    ]
+                )
 
         # Failed checks diagnostics
         failed_results = [r for r in results if r.status in (TestStatus.FAILED, TestStatus.ERROR)]

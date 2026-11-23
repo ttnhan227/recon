@@ -56,6 +56,17 @@ class JSONLogFormatter(logging.Formatter):
         if worker_id:
             log_obj["worker_id"] = worker_id
 
+        try:
+            from recon.common.telemetry import get_current_trace_ids
+
+            trace_id, span_id = get_current_trace_ids()
+            if trace_id:
+                log_obj["trace_id"] = trace_id
+            if span_id:
+                log_obj["span_id"] = span_id
+        except Exception:
+            pass
+
         if record.exc_info:
             log_obj["exception"] = self.formatException(record.exc_info)
 

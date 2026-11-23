@@ -86,6 +86,17 @@ class ReconSettings(BaseSettings):
     log_level: str = "INFO"
     json_logs: bool = False
 
+    # OpenTelemetry Tracing
+    otel_enabled: bool = True
+    otel_service_name: str = "recon-qa"
+    otel_exporter_otlp_endpoint: str | None = Field(
+        default_factory=lambda: (
+            os.getenv("RECON_OTEL_EXPORTER_OTLP_ENDPOINT")
+            or os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT")
+            or None
+        )
+    )
+
     # Execution defaults
     default_concurrency: int = Field(default=4, ge=1, le=32)
     default_timeout_seconds: float = Field(default=30.0, ge=1.0, le=300.0)

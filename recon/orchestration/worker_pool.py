@@ -15,6 +15,7 @@ from recon.common.models import (
     TestStatus,
     TestType,
 )
+from recon.common.telemetry import get_tracer
 from recon.execution.api.runner import APITestRunner
 from recon.execution.browser.runner import BrowserTestRunner
 from recon.orchestration.state_pool import StatePool
@@ -81,6 +82,8 @@ class WorkerPool:
         for t in wave_tests:
             await queue.put(t)
 
+        tracer = get_tracer("recon.worker_pool")
+
         async def worker(worker_num: int):
             worker_id = f"worker-{worker_num}"
             current_worker_id.set(worker_id)
@@ -93,28 +96,49 @@ class WorkerPool:
                         queue.task_done()
                         break
 
-                    if self.on_test_start:
-                        try:
-                            await self.on_test_start(test)
-                        except Exception as start_err:
-                            logger.warning(f"Worker {worker_id} on_test_start warning: {start_err}")
+                    test_type_str = (
+                        test.test_type.value
+                        if hasattr(test.test_type, "value")
+                        else str(test.test_type)
+                    )
+                    with tracer.start_as_current_span(
+                        "recon.test_case",
+                        attributes={
+                            "run_id": self.run_id,
+                            "test.id": test.id,
+                            "test.type": test_type_str,
+                            "test.status": "RUNNING",
+                        },
+                    ) as test_span:
+                        if self.on_test_start:
+                            try:
+                                await self.on_test_start(test)
+                            except Exception as start_err:
+                                logger.warning(
+                                    f"Worker {worker_id} on_test_start warning: {start_err}"
+                                )
 
-                    # Execute depending on test type
-                    if test.test_type == TestType.BROWSER:
-                        res = await self.browser_runner.execute_test(test)
-                    else:
-                        res = await self.api_runner.execute_test(test)
+                        # Execute depending on test type
+                        if test.test_type == TestType.BROWSER:
+                            res = await self.browser_runner.execute_test(test)
+                        else:
+                            res = await self.api_runner.execute_test(test)
 
-                    async with results_lock:
-                        results.append(res)
+                        status_str = (
+                            res.status.value if hasattr(res.status, "value") else str(res.status)
+                        )
+                        test_span.set_attribute("test.status", status_str)
 
-                    if self.on_test_complete:
-                        try:
-                            await self.on_test_complete(test, res)
-                        except Exception as comp_err:
-                            logger.warning(
-                                f"Worker {worker_id} on_test_complete warning: {comp_err}"
-                            )
+                        async with results_lock:
+                            results.append(res)
+
+                        if self.on_test_complete:
+                            try:
+                                await self.on_test_complete(test, res)
+                            except Exception as comp_err:
+                                logger.warning(
+                                    f"Worker {worker_id} on_test_complete warning: {comp_err}"
+                                )
 
                     queue.task_done()
                 except asyncio.CancelledError:
@@ -160,11 +184,35 @@ class WorkerPool:
         results: list[TestResult] = []
         results_lock = asyncio.Lock()
         waves = self._partition_into_waves(tests)
+        tracer = get_tracer("recon.worker_pool")
+
+        wave_labels = {
+            1: "Root Entity Creation",
+            2: "General List Queries",
+            3: "Detail Queries & Validations",
+            4: "Destructive Cleanups",
+            5: "Browser Tests",
+        }
 
         for wave_tests in waves:
             if self._cancelled:
                 break
-            await self._execute_wave(wave_tests, results, results_lock)
+            if not wave_tests:
+                continue
+
+            wave_idx = self.get_test_wave(wave_tests[0])
+            wave_name = wave_labels.get(wave_idx, f"Wave {wave_idx}")
+
+            with tracer.start_as_current_span(
+                "recon.wave",
+                attributes={
+                    "run_id": self.run_id,
+                    "wave.index": wave_idx,
+                    "wave.name": wave_name,
+                    "wave.test_count": len(wave_tests),
+                },
+            ):
+                await self._execute_wave(wave_tests, results, results_lock)
 
         return results
 

@@ -215,6 +215,8 @@ class RunSummary(BaseModel):
     failure_breakdown: dict[str, int] = Field(default_factory=dict)
     category_breakdown: dict[str, dict[str, int]] = Field(default_factory=dict)
     exit_code: int = 0
+    trace_id: str | None = None
+    trace_summary: dict[str, Any] = Field(default_factory=dict)
 
 
 class AgentInteractiveElement(BaseModel):

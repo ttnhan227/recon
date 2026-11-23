@@ -4,13 +4,14 @@ import re
 from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import BaseModel, Field
 
 from recon.common.config import get_project_slug, settings
 from recon.common.exceptions import DiscoveryError, SSRFSecurityError, TargetUnreachableError
 from recon.common.models import RunSummary
+from recon.common.telemetry import extract_trace_context, get_current_trace_ids, get_tracer
 from recon.orchestration.orchestrator import TestOrchestrator
 from recon.persistence.database import DatabaseManager
 
@@ -19,6 +20,34 @@ api_app = FastAPI(
     description="HTTP API for triggering remote test runs, webhooks, and retrieving test reports.",
     version=settings.version,
 )
+
+
+@api_app.middleware("http")
+async def tracing_middleware(request: Request, call_next: Any) -> Response:
+    """Extracts incoming W3C traceparent, opens a server span, and sets X-Trace-Id on all responses."""
+    tracer = get_tracer("recon.api_server")
+    extracted_context = extract_trace_context(dict(request.headers))
+    method = request.method
+    path = request.url.path
+
+    with tracer.start_as_current_span(
+        f"{method} {path}",
+        context=extracted_context,
+        attributes={
+            "http.method": method,
+            "http.route": path,
+        },
+    ) as span:
+        trace_id, _ = get_current_trace_ids()
+        try:
+            response = await call_next(request)
+            if trace_id:
+                response.headers["X-Trace-Id"] = trace_id
+            span.set_attribute("http.status_code", response.status_code)
+            return response
+        except Exception:
+            span.set_attribute("http.status_code", 500)
+            raise
 
 
 @api_app.exception_handler(SSRFSecurityError)
@@ -81,6 +110,7 @@ async def trigger_test_run(req: TriggerRunRequest):
         "exit_code": summary.exit_code,
         "duration_seconds": summary.duration_seconds,
         "failure_breakdown": summary.failure_breakdown,
+        "trace_id": summary.trace_id,
     }
 
 

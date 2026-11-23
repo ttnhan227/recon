@@ -24,6 +24,7 @@ from recon.common.security import (
     redact_url,
     validate_target_url,
 )
+from recon.common.telemetry import get_tracer, inject_trace_headers
 from recon.execution.api.assertions import evaluate_assertion
 from recon.orchestration.state_pool import StatePool
 
@@ -149,73 +150,95 @@ class APITestRunner:
         # Validate URL security / SSRF
         validate_target_url(endpoint)
 
-        step_start = time.perf_counter()
-        attempt = 0
-        last_exception: Exception | None = None
-        response: httpx.Response | None = None
+        tracer = get_tracer("recon.api_runner")
+        span_attrs: dict[str, Any] = {
+            "http.method": method,
+            "http.route": redact_url(endpoint),
+        }
+        try:
+            from recon.common.logging import current_run_id
 
-        while attempt <= max_retries:
-            try:
-                # Prepare JSON body if dict or list
-                json_kwarg = body if isinstance(body, (dict, list)) else None
-                content_kwarg = (
-                    str(body).encode() if body is not None and json_kwarg is None else None
-                )
+            r_id = current_run_id.get()
+            if r_id:
+                span_attrs["run_id"] = r_id
+        except Exception:
+            pass
 
-                req_start = time.perf_counter()
-                response = await client.request(
-                    method=method,
-                    url=endpoint,
-                    headers=headers,
-                    params=params,
-                    json=json_kwarg,
-                    content=content_kwarg,
-                    timeout=step.timeout_seconds,
-                )
-                latency_ms = (time.perf_counter() - req_start) * 1000.0
-                break
-            except (httpx.ConnectError, httpx.TimeoutException, httpx.NetworkError) as ex:
-                last_exception = ex
-                attempt += 1
-                if attempt <= max_retries:
-                    await asyncio.sleep(0.5 * (2 ** (attempt - 1)))
-                else:
+        with tracer.start_as_current_span("recon.http_step", attributes=span_attrs) as http_span:
+            headers = inject_trace_headers(headers)
+
+            step_start = time.perf_counter()
+            attempt = 0
+            last_exception: Exception | None = None
+            response: httpx.Response | None = None
+            latency_ms = 0.0
+
+            while attempt <= max_retries:
+                try:
+                    # Prepare JSON body if dict or list
+                    json_kwarg = body if isinstance(body, (dict, list)) else None
+                    content_kwarg = (
+                        str(body).encode() if body is not None and json_kwarg is None else None
+                    )
+
+                    req_start = time.perf_counter()
+                    response = await client.request(
+                        method=method,
+                        url=endpoint,
+                        headers=headers,
+                        params=params,
+                        json=json_kwarg,
+                        content=content_kwarg,
+                        timeout=step.timeout_seconds,
+                    )
+                    latency_ms = (time.perf_counter() - req_start) * 1000.0
                     break
+                except (httpx.ConnectError, httpx.TimeoutException, httpx.NetworkError) as ex:
+                    last_exception = ex
+                    attempt += 1
+                    if attempt <= max_retries:
+                        await asyncio.sleep(0.5 * (2 ** (attempt - 1)))
+                    else:
+                        break
 
-        step_duration = (time.perf_counter() - step_start) * 1000.0
+            step_duration = (time.perf_counter() - step_start) * 1000.0
 
-        # Case 1: Request totally failed (network / timeout error)
-        if response is None:
-            err_msg = f"HTTP request failed after {attempt} attempts: {last_exception}"
-            err_trace = HTTPTrace(
-                request_method=method,
-                request_url=redact_url(endpoint),
-                request_headers=redact_headers(headers),
-                request_body=redact_sensitive_data(body),
-                response_status=None,
-                response_body=str(last_exception),
-                latency_ms=round(step_duration, 2),
-            )
-            return (
-                StepResult(
-                    step_name=step.name,
-                    status=TestStatus.FAILED
-                    if isinstance(last_exception, httpx.TimeoutException)
-                    else TestStatus.ERROR,
-                    duration_ms=round(step_duration, 2),
-                    error_message=err_msg,
-                    http_trace=err_trace,
-                ),
-                err_trace,
-                {
-                    "error": str(last_exception),
-                    "exception_type": type(last_exception).__name__,
-                    "retries_attempted": attempt,
-                },
-            )
+            # Case 1: Request totally failed (network / timeout error)
+            if response is None:
+                http_span.set_attribute("http.status_code", 0)
+                http_span.set_attribute("http.duration_ms", round(step_duration, 2))
+                err_msg = f"HTTP request failed after {attempt} attempts: {last_exception}"
+                err_trace = HTTPTrace(
+                    request_method=method,
+                    request_url=redact_url(endpoint),
+                    request_headers=redact_headers(headers),
+                    request_body=redact_sensitive_data(body),
+                    response_status=None,
+                    response_body=str(last_exception),
+                    latency_ms=round(step_duration, 2),
+                )
+                return (
+                    StepResult(
+                        step_name=step.name,
+                        status=TestStatus.FAILED
+                        if isinstance(last_exception, httpx.TimeoutException)
+                        else TestStatus.ERROR,
+                        duration_ms=round(step_duration, 2),
+                        error_message=err_msg,
+                        http_trace=err_trace,
+                    ),
+                    err_trace,
+                    {
+                        "error": str(last_exception),
+                        "exception_type": type(last_exception).__name__,
+                        "retries_attempted": attempt,
+                    },
+                )
 
-        # Parse response (bounded by max_response_size_bytes)
-        resp_status = response.status_code
+            # Parse response (bounded by max_response_size_bytes)
+            resp_status = response.status_code
+            http_span.set_attribute("http.status_code", resp_status)
+            http_span.set_attribute("http.duration_ms", round(latency_ms, 2))
         resp_headers = dict(response.headers)
         max_bytes = settings.max_response_size_bytes
         raw_content = getattr(response, "content", None)
