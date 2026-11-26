@@ -9,7 +9,7 @@ import yaml
 
 from recon.common.exceptions import DiscoveryError
 from recon.common.logging import logger
-from recon.common.security import validate_target_url
+from recon.common.security import validate_redirect_response, validate_target_url
 from recon.discovery.models import (
     DiscoveredApplication,
     DiscoveredEndpoint,
@@ -31,7 +31,11 @@ class OpenAPIParser:
         """Fetches and parses spec from a remote HTTP URL."""
         validate_target_url(spec_url)
         try:
-            async with httpx.AsyncClient(timeout=15.0, follow_redirects=True) as client:
+            async with httpx.AsyncClient(
+                timeout=15.0,
+                follow_redirects=True,
+                event_hooks={"response": [validate_redirect_response]},
+            ) as client:
                 resp = await client.get(spec_url)
                 resp.raise_for_status()
                 content = resp.text

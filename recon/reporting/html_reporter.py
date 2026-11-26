@@ -123,6 +123,43 @@ class HTMLReporter:
                     + "</div></div>"
                 )
 
+        phase_waterfall_html = ""
+        if summary.trace_summary:
+            phases = summary.trace_summary.get("phase_durations_ms", {})
+            total_phase_ms = sum(
+                float(v) for v in phases.values() if isinstance(v, (int, float)) and v > 0
+            )
+            if phases and total_phase_ms > 0:
+                wf_colors = ["#2f81f7", "#a371f7", "#3fb950", "#d29922", "#58a6ff"]
+                segs = []
+                legend = []
+                for idx, (p_name, p_dur) in enumerate(phases.items()):
+                    pct = max(2.0, (float(p_dur) / total_phase_ms) * 100.0)
+                    col = wf_colors[idx % len(wf_colors)]
+                    segs.append(
+                        f'<div class="wf-seg" style="width: {pct:.1f}%; background: {col};" '
+                        f'title="{html.escape(p_name)}: {float(p_dur):.1f} ms"></div>'
+                    )
+                    legend.append(
+                        f'<span class="wf-leg-item"><span class="wf-dot" style="background: {col};"></span>'
+                        f"{html.escape(p_name)} <code>{float(p_dur):.0f}ms</code></span>"
+                    )
+                p50 = summary.trace_summary.get("http_latency_p50_ms")
+                p95 = summary.trace_summary.get("http_latency_p95_ms")
+                lat_html = ""
+                if p50 is not None or p95 is not None:
+                    p50_str = f"{p50:.1f}ms" if p50 is not None else "N/A"
+                    p95_str = f"{p95:.1f}ms" if p95 is not None else "N/A"
+                    lat_html = f'<span class="wf-latency">HTTP p50/p95: <code>{p50_str} / {p95_str}</code></span>'
+                phase_waterfall_html = (
+                    '<section class="waterfall-strip" aria-label="Pipeline phase waterfall">'
+                    '<div class="wf-header"><span class="wf-title">PIPELINE WATERFALL</span>'
+                    f"{lat_html}</div>"
+                    f'<div class="wf-track" aria-hidden="true">{"".join(segs)}</div>'
+                    f'<div class="wf-legend">{"".join(legend)}</div>'
+                    "</section>"
+                )
+
         return f"""<!DOCTYPE html>
 <html lang="en" class="dark">
 <head>
@@ -132,63 +169,65 @@ class HTMLReporter:
     <title>Recon QA Report - {safe_run_id}</title>
     <style>
         :root {{
-            --bg: #f8fafc;
+            color-scheme: light;
+            --bg: #f6f8fa;
             --surface: #ffffff;
-            --surface-card: #f1f5f9;
-            --surface-hover: #e2e8f0;
-            --border: #cbd5e1;
-            --border-subtle: #e2e8f0;
-            --text: #0f172a;
-            --text-muted: #334155;
-            --text-dim: #475569;
-            --accent: #2563eb;
-            --accent-hover: #1d4ed8;
-            --accent-glow: rgba(37, 99, 235, 0.15);
-            --pass: #047857;
-            --pass-bg: rgba(4, 120, 87, 0.1);
-            --pass-border: #059669;
-            --fail: #b91c1c;
-            --fail-bg: rgba(185, 28, 28, 0.1);
-            --fail-border: #dc2626;
-            --warn: #b45309;
-            --warn-bg: rgba(180, 83, 9, 0.1);
-            --info: #0284c7;
-            --info-bg: rgba(2, 132, 199, 0.1);
-            --code-bg: #f1f5f9;
-            --code-text: #0f172a;
-            --radius-sm: 0.25rem;
-            --radius-md: 0.375rem;
-            --radius-lg: 0.5rem;
-            --radius-full: 9999px;
+            --surface-card: #f6f8fa;
+            --surface-hover: #eaeef2;
+            --border: #d0d7de;
+            --border-subtle: #d8dee4;
+            --text: #1f2328;
+            --text-muted: #59636e;
+            --text-dim: #6e7781;
+            --accent: #0969da;
+            --accent-hover: #0550ae;
+            --accent-glow: rgba(9, 105, 218, 0.14);
+            --pass: #1a7f37;
+            --pass-bg: rgba(26, 127, 55, 0.08);
+            --pass-border: #2da44e;
+            --fail: #cf222e;
+            --fail-bg: rgba(207, 34, 46, 0.08);
+            --fail-border: #cf222e;
+            --warn: #9a6700;
+            --warn-bg: rgba(154, 103, 0, 0.08);
+            --info: #0969da;
+            --info-bg: rgba(9, 105, 218, 0.08);
+            --code-bg: #eff1f3;
+            --code-text: #1f2328;
+            --radius-sm: 2px;
+            --radius-md: 4px;
+            --radius-lg: 4px;
+            --radius-full: 2px;
             --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
             --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
         }}
 
         html.dark {{
-            --bg: #0b0f19;
-            --surface: #111827;
-            --surface-card: #182234;
-            --surface-hover: #223048;
-            --border: #2e3a51;
-            --border-subtle: #1f293d;
-            --text: #f9fafb;
-            --text-muted: #cbd5e1;
-            --text-dim: #94a3b8;
-            --accent: #3b82f6;
-            --accent-hover: #2563eb;
-            --accent-glow: rgba(59, 130, 246, 0.2);
-            --pass: #10b981;
-            --pass-bg: rgba(16, 185, 129, 0.14);
-            --pass-border: #059669;
-            --fail: #ef4444;
-            --fail-bg: rgba(239, 68, 68, 0.14);
-            --fail-border: #dc2626;
-            --warn: #f59e0b;
-            --warn-bg: rgba(245, 158, 11, 0.14);
-            --info: #38bdf8;
-            --info-bg: rgba(56, 189, 248, 0.14);
-            --code-bg: #090d16;
-            --code-text: #e2e8f0;
+            color-scheme: dark;
+            --bg: #0d1117;
+            --surface: #161b22;
+            --surface-card: #0d1117;
+            --surface-hover: #21262d;
+            --border: #30363d;
+            --border-subtle: #21262d;
+            --text: #e6edf3;
+            --text-muted: #8b949e;
+            --text-dim: #7d8590;
+            --accent: #2f81f7;
+            --accent-hover: #58a6ff;
+            --accent-glow: rgba(47, 129, 247, 0.18);
+            --pass: #3fb950;
+            --pass-bg: rgba(63, 185, 80, 0.12);
+            --pass-border: #238636;
+            --fail: #f85149;
+            --fail-bg: rgba(248, 81, 73, 0.12);
+            --fail-border: #da3633;
+            --warn: #d29922;
+            --warn-bg: rgba(210, 153, 34, 0.12);
+            --info: #58a6ff;
+            --info-bg: rgba(88, 166, 255, 0.12);
+            --code-bg: #0d1117;
+            --code-text: #e6edf3;
         }}
 
         *, *::before, *::after {{
@@ -259,13 +298,15 @@ class HTMLReporter:
             gap: 1rem;
         }}
         .badge-logo {{
-            background: var(--surface-card);
+            background: var(--surface);
             border: 1px solid var(--border);
+            border-left: 3px solid var(--accent);
             color: var(--text);
-            font-weight: 800;
-            font-size: 0.95rem;
+            font-family: var(--font-mono);
+            font-weight: 700;
+            font-size: 0.82rem;
             letter-spacing: 0.08em;
-            padding: 0.4rem 0.85rem;
+            padding: 0.4rem 0.75rem;
             border-radius: var(--radius-md);
         }}
         .title-block h1 {{
@@ -277,7 +318,8 @@ class HTMLReporter:
             font-size: 0.875rem;
             color: var(--text-muted);
             margin-top: 0.25rem;
-            word-break: break-all;
+            word-break: normal;
+            overflow-wrap: normal;
         }}
         .title-meta code {{
             background: var(--surface-card);
@@ -287,6 +329,7 @@ class HTMLReporter:
             font-family: var(--font-mono);
             font-size: 0.82rem;
             color: var(--text);
+            overflow-wrap: anywhere;
         }}
         .header-actions {{
             display: flex;
@@ -297,11 +340,15 @@ class HTMLReporter:
         .meta-pill {{
             font-size: 0.85rem;
             font-weight: 600;
+            font-variant-numeric: tabular-nums;
             padding: 0.4rem 0.85rem;
-            border-radius: var(--radius-full);
+            border-radius: var(--radius-sm);
             background: var(--surface-card);
             border: 1px solid var(--border);
             color: var(--text-muted);
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
         }}
         .btn-theme {{
             background: var(--surface-card);
@@ -337,11 +384,10 @@ class HTMLReporter:
         }}
         .progress-bar-container {{
             width: 100%;
-            height: 10px;
-            background: var(--surface-card);
-            border-radius: var(--radius-full);
+            height: 5px;
+            background: var(--surface-hover);
+            border-radius: 2px;
             overflow: hidden;
-            border: 1px solid var(--border);
             display: flex;
         }}
         .progress-fill-pass {{
@@ -392,25 +438,134 @@ class HTMLReporter:
             font-weight: 700;
         }}
 
-        /* Metric Grid */
-        .stats-grid {{
+        /* Dense CI Run Strip & Pipeline Waterfall */
+        .ci-strip {{
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 1rem;
-            margin-bottom: 2rem;
-        }}
-        .card {{
+            grid-template-columns: repeat(4, minmax(0, 1fr));
             background: var(--surface);
             border: 1px solid var(--border);
             border-radius: var(--radius-md);
-            padding: 1.25rem;
+            overflow: hidden;
+            margin-bottom: 0.75rem;
+        }}
+        .ci-cell {{
+            padding: 0.65rem 1rem;
+            border-right: 1px solid var(--border);
+            display: flex;
+            align-items: baseline;
+            justify-content: space-between;
+            gap: 0.5rem;
+        }}
+        .ci-cell:last-child {{
+            border-right: none;
+        }}
+        .ci-label {{
+            font-family: var(--font-mono);
+            font-size: 0.72rem;
+            font-weight: 700;
+            letter-spacing: 0.06em;
+            color: var(--text-muted);
+            text-transform: uppercase;
+        }}
+        .ci-val {{
+            font-family: var(--font-mono);
+            font-size: 1.15rem;
+            font-weight: 800;
+            font-variant-numeric: tabular-nums;
+        }}
+        .ci-val.pass {{ color: var(--pass); }}
+        .ci-val.fail {{ color: var(--fail); }}
+        .ci-val.info {{ color: var(--info); }}
+        .waterfall-strip {{
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            padding: 0.75rem 1rem;
+            margin-bottom: 1.5rem;
+        }}
+        .wf-header {{
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            margin-bottom: 0.45rem;
+        }}
+        .wf-title {{
+            font-family: var(--font-mono);
+            font-size: 0.72rem;
+            font-weight: 700;
+            letter-spacing: 0.06em;
+            color: var(--text-muted);
+        }}
+        .wf-latency {{
+            font-family: var(--font-mono);
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            font-variant-numeric: tabular-nums;
+        }}
+        .wf-track {{
+            display: flex;
+            height: 6px;
+            width: 100%;
+            gap: 2px;
+            border-radius: 2px;
+            overflow: hidden;
+            margin-bottom: 0.5rem;
+        }}
+        .wf-seg {{
+            height: 100%;
+        }}
+        .wf-legend {{
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.9rem;
+            font-size: 0.75rem;
+            color: var(--text-muted);
+        }}
+        .wf-leg-item {{
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+            font-variant-numeric: tabular-nums;
+        }}
+        .wf-leg-item code {{
+            color: var(--text);
+            font-family: var(--font-mono);
+            font-size: 0.72rem;
+        }}
+        .wf-dot {{
+            width: 7px;
+            height: 7px;
+            border-radius: 2px;
+            display: inline-block;
+        }}
+        /* Unified Tabular KPI Strip (kept for print/fallback compatibility) */
+        .stats-grid {{
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            overflow: hidden;
+            margin-bottom: 1.75rem;
+        }}
+        .card {{
+            background: transparent;
+            border: none;
+            border-right: 1px solid var(--border);
+            border-radius: 0;
+            padding: 1.1rem 1.25rem;
             display: flex;
             flex-direction: column;
             justify-content: space-between;
-            transition: border-color 0.15s ease;
+            transition: background-color 0.15s ease;
+        }}
+        .card:last-child {{
+            border-right: none;
         }}
         .card:hover {{
-            border-color: var(--text-dim);
+            background: var(--surface-hover);
         }}
         .card-label {{
             font-size: 0.8rem;
@@ -424,6 +579,7 @@ class HTMLReporter:
             font-size: 2.1rem;
             font-weight: 900;
             line-height: 1.1;
+            font-variant-numeric: tabular-nums;
         }}
         .card-value.pass {{ color: var(--pass); }}
         .card-value.fail {{ color: var(--fail); }}
@@ -437,8 +593,8 @@ class HTMLReporter:
         /* Breakdown Section */
         .breakdown-section {{
             display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 1.5rem;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 1.25rem;
             margin-bottom: 2.5rem;
         }}
         .breakdown-card {{
@@ -450,7 +606,7 @@ class HTMLReporter:
         .breakdown-card h3 {{
             font-size: 1.05rem;
             font-weight: 700;
-            margin-bottom: 1rem;
+            margin-bottom: 0.5rem;
             border-bottom: 1px solid var(--border);
             padding-bottom: 0.6rem;
             display: flex;
@@ -460,21 +616,30 @@ class HTMLReporter:
         .tax-list {{
             display: flex;
             flex-direction: column;
-            gap: 0.6rem;
+            gap: 0;
         }}
         .tax-item {{
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding: 0.6rem 0.85rem;
-            background: var(--surface-card);
-            border: 1px solid var(--border-subtle);
-            border-radius: var(--radius-sm);
+            gap: 0.75rem;
+            padding: 0.6rem 0;
+            background: transparent;
+            border: none;
+            border-bottom: 1px solid var(--border-subtle);
+            border-radius: 0;
             font-size: 0.875rem;
         }}
+        .tax-item:last-child {{
+            border-bottom: none;
+            padding-bottom: 0.15rem;
+        }}
         .tax-item.zero-state {{
+            margin-top: 0.5rem;
+            padding: 0.6rem 0.75rem;
             background: var(--pass-bg);
-            border-color: var(--pass-border);
+            border: 1px solid var(--pass-border);
+            border-radius: var(--radius-sm);
             display: flex;
             align-items: center;
             gap: 0.5rem;
@@ -486,11 +651,13 @@ class HTMLReporter:
         .tax-badge {{
             font-size: 0.75rem;
             font-weight: 700;
-            padding: 0.25rem 0.6rem;
+            font-variant-numeric: tabular-nums;
+            padding: 0.2rem 0.55rem;
             border-radius: var(--radius-sm);
-            background: var(--surface-hover);
+            background: var(--surface-card);
             color: var(--text);
             border: 1px solid var(--border);
+            white-space: nowrap;
         }}
         .tax-badge.app-err {{
             background: var(--fail-bg);
@@ -1152,8 +1319,29 @@ class HTMLReporter:
                 align-items: flex-start;
                 gap: 1rem;
             }}
+            .ci-strip {{
+                grid-template-columns: repeat(2, 1fr);
+            }}
+            .ci-cell {{
+                border-bottom: 1px solid var(--border);
+            }}
+            .ci-cell:nth-child(2n) {{
+                border-right: none;
+            }}
+            .ci-cell:nth-last-child(-n+2) {{
+                border-bottom: none;
+            }}
             .stats-grid {{
                 grid-template-columns: repeat(2, 1fr);
+            }}
+            .card {{
+                border-bottom: 1px solid var(--border);
+            }}
+            .card:nth-child(2n) {{
+                border-right: none;
+            }}
+            .card:nth-last-child(-n+2) {{
+                border-bottom: none;
             }}
             .controls {{
                 flex-direction: column;
@@ -1170,6 +1358,18 @@ class HTMLReporter:
         }}
 
         @media (max-width: 480px) {{
+            .ci-strip {{
+                grid-template-columns: repeat(2, 1fr);
+            }}
+            .ci-cell {{
+                border-bottom: 1px solid var(--border);
+            }}
+            .ci-cell:nth-child(2n) {{
+                border-right: none;
+            }}
+            .ci-cell:nth-last-child(-n+2) {{
+                border-bottom: none;
+            }}
             .stats-grid {{
                 grid-template-columns: 1fr;
             }}
@@ -1229,71 +1429,50 @@ class HTMLReporter:
             </div>
         </div>
         <div class="header-actions">
-            <button type="button" class="btn-theme" id="themeToggle" onclick="toggleTheme()" aria-label="Toggle visual theme">🌓 Theme</button>
-            <span class="meta-pill" aria-label="Execution duration">⏱ Duration: {summary.duration_seconds:.2f}s</span>
+            <span class="meta-pill" aria-label="Execution duration">
+                <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/></svg>
+                <span>Duration: {summary.duration_seconds:.2f}s</span>
+            </span>
             <span class="meta-pill" aria-label="Pass rate">Pass Rate: {pass_rate}%</span>
         </div>
     </header>
 
     <main id="main-content" class="container" role="main">
-        <!-- Visual Progress Bar -->
-        <div class="progress-wrapper" aria-hidden="true">
-            <div class="progress-meta">
-                <span>Pass Rate: {pass_rate}% ({passed}/{total} Passed)</span>
-                <span>Failure Rate: {fail_rate}% ({failed} Failed)</span>
+        <!-- Dense CI Run Header Strip -->
+        <section aria-labelledby="heading-metrics" class="section-block">
+            <h2 id="heading-metrics" class="sr-only">Execution Metrics</h2>
+            <div class="ci-strip">
+                <div class="ci-cell">
+                    <span class="ci-label">Total</span>
+                    <span class="ci-val info">{total}</span>
+                </div>
+                <div class="ci-cell">
+                    <span class="ci-label">Passed</span>
+                    <span class="ci-val pass">{passed}</span>
+                </div>
+                <div class="ci-cell">
+                    <span class="ci-label">Failed</span>
+                    <span class="ci-val fail">{failed}</span>
+                </div>
+                <div class="ci-cell">
+                    <span class="ci-label">Pass Rate</span>
+                    <span class="ci-val" style="color: {hero_status_color};">{pass_rate}%</span>
+                </div>
             </div>
+        </section>
+
+        <!-- Visual Progress Bar -->
+        <div class="progress-wrapper" aria-hidden="true" style="margin-bottom: 1rem;">
             <div class="progress-bar-container" role="progressbar" aria-valuenow="{pass_rate}" aria-valuemin="0" aria-valuemax="100" aria-label="Suite Pass Rate">
                 <div class="progress-fill-pass" style="width: {pass_rate}%;"></div>
                 <div class="progress-fill-fail" style="width: {fail_rate}%;"></div>
             </div>
         </div>
 
-        <!-- Metric Grid -->
-        <section aria-labelledby="heading-metrics" class="section-block">
-            <h2 id="heading-metrics" class="sr-only">Execution Metrics</h2>
-            <div class="stats-grid">
-                <div class="card">
-                    <div class="card-label">Total Tests</div>
-                    <div class="card-value info">{total}</div>
-                    <div class="card-subtext">Executed in wave orchestration</div>
-                </div>
-                <div class="card">
-                    <div class="card-label">Passed</div>
-                    <div class="card-value pass">{passed}</div>
-                    <div class="card-subtext">Met all assertions</div>
-                </div>
-                <div class="card">
-                    <div class="card-label">Failed & Errors</div>
-                    <div class="card-value fail">{failed}</div>
-                    <div class="card-subtext">Required attention</div>
-                </div>
-                <div class="card">
-                    <div class="card-label">Overall Pass Rate</div>
-                    <div class="card-value" style="color: {hero_status_color};">{pass_rate}%</div>
-                    <div class="card-subtext">Target threshold: 100%</div>
-                </div>
-            </div>
-        </section>
+        {phase_waterfall_html}
 
-        <!-- Breakdown Section -->
-        <section aria-labelledby="heading-breakdowns" class="breakdown-section">
-            <div class="breakdown-card">
-                <h3 id="heading-breakdowns">Failure Taxonomy Breakdown</h3>
-                <div class="tax-list">
-                    {tax_items_html}
-                </div>
-            </div>
-            <div class="breakdown-card">
-                <h3>Category Distribution</h3>
-                <div class="tax-list">
-                    {cat_items_html}
-                </div>
-            </div>
-            {trace_summary_html}
-        </section>
-
-        <!-- Test Results Section -->
-        <section aria-labelledby="heading-results">
+        <!-- Test Results Section (Failed + RCA immediately visible above the fold) -->
+        <section aria-labelledby="heading-results" style="margin-bottom: 2.25rem;">
             <div class="section-header">
                 <h2 id="heading-results">Test Execution Results</h2>
                 <div class="kbd-hint" aria-hidden="true">Shortcuts: [/] search &bull; [e] expand all &bull; [c] collapse all &bull; [?] help</div>
@@ -1315,10 +1494,10 @@ class HTMLReporter:
 
                     <label for="sortSelect" class="sr-only">Sort tests</label>
                     <select id="sortSelect" class="sort-select" onchange="setSort(this.value)" aria-label="Sort tests">
+                        <option value="status" selected>Sort: Failed First</option>
                         <option value="default">Sort: Execution Order</option>
                         <option value="duration-desc">Sort: Slowest First</option>
                         <option value="duration-asc">Sort: Fastest First</option>
-                        <option value="status">Sort: Failed First</option>
                         <option value="name">Sort: Name (A-Z)</option>
                     </select>
                 </div>
@@ -1335,6 +1514,23 @@ class HTMLReporter:
 
             <!-- Test List Container -->
             <div class="test-list" id="testList" role="region" aria-label="Detailed test cases"></div>
+        </section>
+
+        <!-- Secondary Breakdown Summary -->
+        <section aria-labelledby="heading-breakdowns" class="breakdown-section">
+            <div class="breakdown-card">
+                <h3 id="heading-breakdowns">Failure Taxonomy Breakdown</h3>
+                <div class="tax-list">
+                    {tax_items_html}
+                </div>
+            </div>
+            <div class="breakdown-card">
+                <h3>Category Distribution</h3>
+                <div class="tax-list">
+                    {cat_items_html}
+                </div>
+            </div>
+            {trace_summary_html}
         </section>
     </main>
 
@@ -1378,23 +1574,8 @@ class HTMLReporter:
     <script>
         const rawTests = {tests_data_script};
         let currentFilter = 'ALL';
-        let currentSort = 'default';
+        let currentSort = 'status';
         let searchDebounceTimer = null;
-
-        function toggleTheme() {{
-            const isDark = document.documentElement.classList.toggle('dark');
-            try {{
-                localStorage.setItem('recon-theme', isDark ? 'dark' : 'light');
-            }} catch (e) {{}}
-        }}
-
-        // Check stored theme
-        try {{
-            const savedTheme = localStorage.getItem('recon-theme');
-            if (savedTheme === 'light') {{
-                document.documentElement.classList.remove('dark');
-            }}
-        }} catch (e) {{}}
 
         // Global keyboard shortcuts
         document.addEventListener('keydown', (e) => {{
@@ -1443,9 +1624,6 @@ class HTMLReporter:
             }} else if (e.key === 'a' || e.key === 'A') {{
                 e.preventDefault();
                 setFilter('ALL');
-            }} else if (e.key === 't' || e.key === 'T') {{
-                e.preventDefault();
-                toggleTheme();
             }} else if (e.key === '?') {{
                 e.preventDefault();
                 openShortcutsModal();
@@ -1931,8 +2109,16 @@ class HTMLReporter:
                 .replace(/'/g, '&#39;');
         }}
 
-        // Initial Render
+        // Initial Render: sort failed first and auto-expand failed diagnostics
         renderTests();
+        document.querySelectorAll('.test-row.failed').forEach(row => {{
+            const btn = row.querySelector('.test-header-btn');
+            const bodyEl = row.querySelector('.test-body');
+            if (btn && bodyEl) {{
+                bodyEl.removeAttribute('hidden');
+                btn.setAttribute('aria-expanded', 'true');
+            }}
+        }});
     </script>
 </body>
 </html>

@@ -142,14 +142,12 @@ def test_html_reporter_semantic_structure_and_landmarks(tmp_path: Path):
     assert filter_status is not None
     assert filter_status.get("aria-live") == "polite"
 
-    # 7. Batch buttons, theme toggle, and sort controls
+    # 7. Batch buttons and sort controls
     expand_all = soup.find("button", id="btnExpandAll")
     collapse_all = soup.find("button", id="btnCollapseAll")
-    theme_toggle = soup.find("button", id="themeToggle")
     sort_select = soup.find("select", id="sortSelect")
     assert expand_all is not None
     assert collapse_all is not None
-    assert theme_toggle is not None
     assert sort_select is not None
 
     # 8. Interactive test filter buttons

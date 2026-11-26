@@ -88,18 +88,7 @@ Reports are stored under `~/.recon/reports/` by default. Use `--report-dir` to c
 
 ## Architecture & Execution Pipeline
 
-For full system architecture, ADRs, 5-wave DAG execution, SSRF/redaction guardrails, self-healing AST rollback, OpenTelemetry tracing, and failure recovery matrices, see [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md).
-
-```mermaid
-flowchart TD
-    Target["Target Web Application / API"] --> Discovery["Discovery Engine\n(OpenAPI 3.x Parser & Web Crawler)"]
-    Discovery --> Fuzzer["Schema Fuzzer & Planner\n(Happy-path, Boundary, Negative & Auth Cases)"]
-    Fuzzer --> Pool["Bounded Async Worker Pool\n(Semaphore Concurrency Control)"]
-    Pool --> Execution["Execution Runner\n(HTTP Client & Playwright Headless Browser)"]
-    Execution --> Classifier["Deterministic Failure Classifier\n(Status Codes, Console Logs, Error Payloads)"]
-    Classifier --> Report["Self-Contained HTML & JSON Reports\n(Failure Screenshots, Traces, Assertions)"]
-    Classifier --> LLM["Optional Multi-Provider LLM RCA\n(Gemini, Mistral, OpenAI, Ollama Diagnostics)"]
-```
+For full system architecture, ADRs, 5-wave DAG execution, SSRF/redaction guardrails, self-healing AST rollback, OpenTelemetry tracing, and failure recovery matrices, see [docs/ARCHITECTURE.md](https://github.com/ttnhan227/recon/blob/main/docs/ARCHITECTURE.md).
 
 ## What Recon checks
 

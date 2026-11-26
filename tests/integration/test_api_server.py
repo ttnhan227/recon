@@ -99,8 +99,9 @@ async def test_api_server_post_runs_error_mapping_and_bounds(monkeypatch):
 async def test_api_server_rejects_traversal_run_id():
     transport = httpx.ASGITransport(app=api_app)
     async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
-        resp = await client.get("/api/v1/runs/..etc..passwd/report")
-        assert resp.status_code == 400
+        for bad_id in ("..etc..passwd", "run-", ".hidden", "run*"):
+            resp = await client.get(f"/api/v1/runs/{bad_id}/report")
+            assert resp.status_code == 400
 
 
 @pytest.mark.asyncio

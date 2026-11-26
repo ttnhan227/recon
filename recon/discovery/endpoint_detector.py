@@ -6,7 +6,7 @@ import httpx
 
 from recon.common.exceptions import DiscoveryError, TargetUnreachableError
 from recon.common.logging import logger
-from recon.common.security import validate_target_url
+from recon.common.security import validate_redirect_response, validate_target_url
 from recon.discovery.models import DiscoveredApplication
 from recon.discovery.openapi import OpenAPIParser
 from recon.discovery.web_crawler import WebCrawler
@@ -57,7 +57,11 @@ async def discover_application(
 
     # 2. Probe for OpenAPI
     base = target_url.rstrip("/")
-    async with httpx.AsyncClient(timeout=3.0, follow_redirects=True) as client:
+    async with httpx.AsyncClient(
+        timeout=3.0,
+        follow_redirects=True,
+        event_hooks={"response": [validate_redirect_response]},
+    ) as client:
         # Pre-flight reachability check: fast probe to determine if target host is listening
         try:
             await client.get(base)

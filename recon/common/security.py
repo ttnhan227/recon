@@ -2,16 +2,37 @@ from __future__ import annotations
 
 import ipaddress
 import re
+import socket
 from typing import Any
-from urllib.parse import urlparse
+from urllib.parse import urljoin, urlparse
+
+import httpx
 
 from recon.common.config import settings
 from recon.common.exceptions import SSRFSecurityError
 
 
+def _check_ip_address(
+    ip: ipaddress.IPv4Address | ipaddress.IPv6Address,
+    label: str,
+    allow_localhost: bool,
+) -> tuple[bool, str] | None:
+    """Returns (False, reason) if an IP address violates SSRF rules, else None."""
+    if ip.is_link_local or ip.is_reserved or ip.is_multicast or ip.is_unspecified:
+        return False, f"Restricted IP address '{label}' is blocked."
+
+    if ip.is_loopback and not allow_localhost:
+        return False, f"Loopback address '{label}' is not allowed in this configuration."
+
+    if ip.is_private and not allow_localhost:
+        return False, f"Private network address '{label}' is blocked."
+
+    return None
+
+
 def is_safe_target_url(url: str, allow_localhost: bool = True) -> tuple[bool, str]:
     """
-    Validates a target URL against SSRF rules, IP blacklists, and cloud metadata IPs.
+    Validates a target URL against SSRF rules, IP blacklists, DNS resolution, and cloud metadata IPs.
     Returns (is_safe, reason).
     """
     if not url:
@@ -44,26 +65,31 @@ def is_safe_target_url(url: str, allow_localhost: bool = True) -> tuple[bool, st
             return False, f"Host '{hostname}' is loopback/test host, which is disallowed."
         return True, "Safe test/local host"
 
-    # Check IP addresses
+    # Check direct IP addresses
     try:
         ip = ipaddress.ip_address(hostname)
-        if ip.is_loopback:
-            if not allow_localhost:
-                return False, f"Loopback address '{hostname}' is not allowed in this configuration."
-            return True, "Safe localhost IP"
-
-        if ip.is_private:
-            # Allow private IPs in local testing mode if localhost is allowed or explicitly permitted
-            if not allow_localhost:
-                return False, f"Private network address '{hostname}' is blocked."
-            return True, "Private network IP allowed"
-
-        if ip.is_link_local or ip.is_reserved or ip.is_multicast:
-            return False, f"Restricted IP address '{hostname}' is blocked."
-
+        blocked = _check_ip_address(ip, hostname, allow_localhost)
+        if blocked is not None:
+            return blocked
+        return True, "Target URL is valid and safe."
     except ValueError:
-        # Not a direct IP, hostname is a domain name.
+        # Not a direct IP; resolve DNS and validate all returned addresses.
         pass
+
+    try:
+        addr_infos = socket.getaddrinfo(hostname, None, proto=socket.IPPROTO_TCP)
+    except socket.gaierror:
+        addr_infos = []
+
+    for info in addr_infos:
+        ip_str = str(info[4][0]).split("%")[0]
+        try:
+            resolved_ip = ipaddress.ip_address(ip_str)
+        except ValueError:
+            continue
+        blocked = _check_ip_address(resolved_ip, f"{hostname} ({ip_str})", allow_localhost)
+        if blocked is not None:
+            return blocked
 
     return True, "Target URL is valid and safe."
 
@@ -74,6 +100,17 @@ def validate_target_url(url: str, allow_localhost: bool = True) -> str:
     if not is_safe:
         raise SSRFSecurityError(f"Security validation failed for URL '{url}': {reason}")
     return url
+
+
+async def validate_redirect_response(
+    response: httpx.Response, allow_localhost: bool = True
+) -> None:
+    """httpx response event hook that validates redirect Location targets against SSRF rules."""
+    if response.is_redirect:
+        location = response.headers.get("location")
+        if location:
+            next_url = urljoin(str(response.url), location)
+            validate_target_url(next_url, allow_localhost=allow_localhost)
 
 
 def _is_sensitive_key(key: str, sensitive_keys: set[str]) -> bool:

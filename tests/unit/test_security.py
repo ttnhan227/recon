@@ -66,3 +66,44 @@ def test_secret_redaction_in_payloads():
     assert redacted["details"]["credit_card"] == "***REDACTED***"
     assert "***REDACTED***" in redacted["details"]["notes"]
     assert redacted["user"] == "alice"
+
+
+def test_ssrf_dns_resolution_blocks_link_local_and_private(monkeypatch):
+    import socket
+
+    from recon.common.security import validate_redirect_response
+
+    def fake_getaddrinfo_link_local(host, port, *args, **kwargs):
+        return [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("169.254.169.254", 0))]
+
+    monkeypatch.setattr(socket, "getaddrinfo", fake_getaddrinfo_link_local)
+    safe, reason = is_safe_target_url("http://rebind.attacker.example/latest/meta-data")
+    assert safe is False
+    assert "blocked" in reason.lower()
+
+    def fake_getaddrinfo_private(host, port, *args, **kwargs):
+        return [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("10.0.0.5", 0))]
+
+    monkeypatch.setattr(socket, "getaddrinfo", fake_getaddrinfo_private)
+    safe_priv, _ = is_safe_target_url("http://internal.attacker.example/", allow_localhost=False)
+    assert safe_priv is False
+
+    import asyncio
+
+    import httpx
+
+    req = httpx.Request("GET", "https://public.example/start")
+    resp = httpx.Response(302, headers={"location": "http://169.254.169.254/latest"}, request=req)
+    with pytest.raises(SSRFSecurityError):
+        asyncio.run(validate_redirect_response(resp))
+
+
+@pytest.mark.asyncio
+async def test_master_agent_enforces_validate_target_url():
+    from recon.agent.master_agent import ReconMasterAgent
+
+    agent = ReconMasterAgent()
+    with pytest.raises(SSRFSecurityError):
+        await agent._execute_browser("http://169.254.169.254/latest", "inspect")
+    with pytest.raises(SSRFSecurityError):
+        await agent._execute_scan("http://169.254.169.254/latest")

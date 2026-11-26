@@ -59,74 +59,84 @@ class WebCrawler:
         self.visited_urls.add(self.base_url)
 
         async with async_playwright() as p:
-            browser = await p.chromium.launch(headless=True)
-            context = await browser.new_context(
-                viewport={"width": 1280, "height": 800},
-                ignore_https_errors=True,
-            )
-
-            while queue and len(self.discovered_pages) < self.max_pages:
-                current_url, depth = queue.pop(0)
-                page = await context.new_page()
-
-                console_errors: list[str] = []
-                network_errors: list[str] = []
-
-                page.on(
-                    "console",
-                    lambda msg: console_errors.append(msg.text) if msg.type == "error" else None,
-                )
-                page.on(
-                    "pageerror", lambda exc: console_errors.append(f"Uncaught Exception: {exc}")
-                )
-                page.on(
-                    "requestfailed",
-                    lambda req: network_errors.append(f"{req.method} {req.url} - {req.failure}"),
+            browser = None
+            try:
+                browser = await p.chromium.launch(headless=True)
+                context = await browser.new_context(
+                    viewport={"width": 1280, "height": 800},
+                    ignore_https_errors=True,
                 )
 
-                try:
-                    logger.info(f"Crawling {current_url} (depth={depth})")
-                    response = await page.goto(
-                        current_url,
-                        timeout=int(self.timeout_seconds * 1000),
-                        wait_until="domcontentloaded",
+                while queue and len(self.discovered_pages) < self.max_pages:
+                    current_url, depth = queue.pop(0)
+                    page = await context.new_page()
+
+                    console_errors: list[str] = []
+                    network_errors: list[str] = []
+
+                    page.on(
+                        "console",
+                        lambda msg: (
+                            console_errors.append(msg.text) if msg.type == "error" else None
+                        ),
                     )
-                    status_code = response.status if response else 200
-                    title = await page.title()
-
-                    # Extract forms, buttons, links, inputs with live DOM inspection
-                    discovered_page = await self._parse_playwright_page(
-                        page, current_url, status_code, title, console_errors, network_errors
+                    page.on(
+                        "pageerror", lambda exc: console_errors.append(f"Uncaught Exception: {exc}")
                     )
-                    self.discovered_pages.append(discovered_page)
+                    page.on(
+                        "requestfailed",
+                        lambda req: network_errors.append(
+                            f"{req.method} {req.url} - {req.failure}"
+                        ),
+                    )
 
-                    # Discover new links to visit
-                    if depth < self.max_depth:
-                        for link in discovered_page.links:
-                            norm_link = link.split("#")[0].rstrip("/")
-                            if (
-                                norm_link
-                                and norm_link not in self.visited_urls
-                                and self._is_same_domain(norm_link)
-                            ):
-                                is_safe, _ = is_safe_target_url(norm_link)
-                                if is_safe:
-                                    self.visited_urls.add(norm_link)
-                                    queue.append((norm_link, depth + 1))
-
-                except Exception as e:
-                    logger.warning(f"Failed to crawl {current_url}: {e}")
-                    self.discovered_pages.append(
-                        DiscoveredPage(
-                            url=current_url,
-                            status_code=500,
-                            console_errors=[f"Navigation error: {e}"],
+                    try:
+                        logger.info(f"Crawling {current_url} (depth={depth})")
+                        response = await page.goto(
+                            current_url,
+                            timeout=int(self.timeout_seconds * 1000),
+                            wait_until="domcontentloaded",
                         )
-                    )
-                finally:
-                    await page.close()
+                        status_code = response.status if response else 200
+                        title = await page.title()
 
-            await browser.close()
+                        # Extract forms, buttons, links, inputs with live DOM inspection
+                        discovered_page = await self._parse_playwright_page(
+                            page, current_url, status_code, title, console_errors, network_errors
+                        )
+                        self.discovered_pages.append(discovered_page)
+
+                        # Discover new links to visit
+                        if depth < self.max_depth:
+                            for link in discovered_page.links:
+                                norm_link = link.split("#")[0].rstrip("/")
+                                if (
+                                    norm_link
+                                    and norm_link not in self.visited_urls
+                                    and self._is_same_domain(norm_link)
+                                ):
+                                    is_safe, _ = is_safe_target_url(norm_link)
+                                    if is_safe:
+                                        self.visited_urls.add(norm_link)
+                                        queue.append((norm_link, depth + 1))
+
+                    except Exception as e:
+                        logger.warning(f"Failed to crawl {current_url}: {e}")
+                        self.discovered_pages.append(
+                            DiscoveredPage(
+                                url=current_url,
+                                status_code=500,
+                                console_errors=[f"Navigation error: {e}"],
+                            )
+                        )
+                    finally:
+                        await page.close()
+            finally:
+                if browser:
+                    try:
+                        await browser.close()
+                    except Exception:
+                        pass
 
         return DiscoveredApplication(
             target_url=self.base_url,
@@ -140,7 +150,13 @@ class WebCrawler:
         queue: list[tuple[str, int]] = [(self.base_url, 0)]
         self.visited_urls.add(self.base_url)
 
-        async with httpx.AsyncClient(timeout=self.timeout_seconds, follow_redirects=True) as client:
+        from recon.common.security import validate_redirect_response
+
+        async with httpx.AsyncClient(
+            timeout=self.timeout_seconds,
+            follow_redirects=True,
+            event_hooks={"response": [validate_redirect_response]},
+        ) as client:
             while queue and len(self.discovered_pages) < self.max_pages:
                 current_url, depth = queue.pop(0)
                 try:

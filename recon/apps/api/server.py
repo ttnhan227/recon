@@ -68,8 +68,10 @@ async def _unreachable_exception_handler(
 
 
 def _validate_run_id(run_id: str) -> str:
-    """Rejects path-traversal or malformed run IDs before filesystem lookup."""
-    if not run_id or ".." in run_id or not re.fullmatch(r"[A-Za-z0-9._-]+", run_id):
+    """Rejects path-traversal, glob injection, or malformed run IDs before filesystem lookup."""
+    if not run_id or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]*", run_id):
+        raise HTTPException(status_code=400, detail="Invalid run_id")
+    if not run_id.removeprefix("run-"):
         raise HTTPException(status_code=400, detail="Invalid run_id")
     return run_id
 

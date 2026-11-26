@@ -22,6 +22,7 @@ from recon.common.security import (
     redact_headers,
     redact_sensitive_data,
     redact_url,
+    validate_redirect_response,
     validate_target_url,
 )
 from recon.common.telemetry import get_tracer, inject_trace_headers
@@ -55,6 +56,7 @@ class APITestRunner:
             timeout=test.timeout_seconds,
             follow_redirects=True,
             verify=settings.verify_tls,
+            event_hooks={"response": [validate_redirect_response]},
         )
 
         try:

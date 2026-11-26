@@ -209,6 +209,7 @@ class ReconBrowserAgent:
                 target_url = action.url or ""
                 validate_target_url(target_url)
                 await page.goto(target_url, timeout=timeout_ms, wait_until="domcontentloaded")
+                validate_target_url(page.url)
                 return True, None
 
             elif act == "scroll":
@@ -253,200 +254,207 @@ class ReconBrowserAgent:
         console.print(f"[bold]Mode:[/bold] {'Headless' if headless else 'Visible Browser'}")
 
         async with async_playwright() as p:
+            browser = None
             try:
-                browser = await p.chromium.launch(headless=headless)
-            except Exception as e:
-                err_str = str(e).lower()
-                if "executable doesn't exist" in err_str or "playwright install" in err_str:
-                    console.print(
-                        Panel(
-                            "[bold red]❌ Chromium Browser Not Installed[/bold red]\n\n"
-                            "Playwright requires browser binaries to interact with web pages.\n\n"
-                            "Install Chromium by running:\n"
-                            "  [bold cyan]python -m playwright install chromium[/bold cyan]",
-                            title="[bold red]Playwright Error[/bold red]",
-                            border_style="red",
+                try:
+                    browser = await p.chromium.launch(headless=headless)
+                except Exception as e:
+                    err_str = str(e).lower()
+                    if "executable doesn't exist" in err_str or "playwright install" in err_str:
+                        console.print(
+                            Panel(
+                                "[bold red]❌ Chromium Browser Not Installed[/bold red]\n\n"
+                                "Playwright requires browser binaries to interact with web pages.\n\n"
+                                "Install Chromium by running:\n"
+                                "  [bold cyan]python -m playwright install chromium[/bold cyan]",
+                                title="[bold red]Playwright Error[/bold red]",
+                                border_style="red",
+                            )
                         )
-                    )
+                        return AgentExecutionReport(
+                            goal=goal,
+                            start_url=start_url,
+                            final_url=start_url,
+                            status=TestStatus.ERROR,
+                            summary="Chromium browser binary is missing. Run 'python -m playwright install chromium'.",
+                        )
+                    raise
+
+                context = await browser.new_context(
+                    viewport={"width": 1280, "height": 800},
+                    ignore_https_errors=True,
+                )
+                page = await context.new_page()
+
+                # Attach defect and error listeners
+                page.on("console", evidence.handle_console)
+                page.on("pageerror", evidence.handle_page_error)
+                page.on("requestfailed", evidence.handle_request_failed)
+
+                console.print(f"[dim]Navigating to initial page: {start_url}[/dim]")
+                try:
+                    await page.goto(start_url, timeout=15000, wait_until="domcontentloaded")
+                    validate_target_url(page.url)
+                except Exception as e:
+                    err_str = str(e)
+                    if "ERR_CONNECTION_REFUSED" in err_str or "ConnectionRefused" in err_str:
+                        console.print(
+                            f"\n[bold red]❌ Connection Refused:[/bold red] Cannot reach {start_url}"
+                        )
+                        console.print(
+                            "[yellow]Please verify that your local development server is running![/yellow]"
+                        )
+                    elif "Timeout" in err_str or "timeout" in err_str.lower():
+                        console.print(
+                            f"\n[bold red]❌ Timeout reaching:[/bold red] {start_url} (waited 15s)"
+                        )
+                    else:
+                        console.print(f"\n[bold red]❌ Navigation error:[/bold red] {e}")
+
                     return AgentExecutionReport(
                         goal=goal,
                         start_url=start_url,
                         final_url=start_url,
-                        status=TestStatus.ERROR,
-                        summary="Chromium browser binary is missing. Run 'python -m playwright install chromium'.",
+                        status=TestStatus.FAILED,
+                        summary=f"Failed to connect to {start_url}: {e}",
+                        errors_detected=[str(e)],
                     )
-                raise
 
-            context = await browser.new_context(
-                viewport={"width": 1280, "height": 800},
-                ignore_https_errors=True,
-            )
-            page = await context.new_page()
+                await asyncio.sleep(0.5)
 
-            # Attach defect and error listeners
-            page.on("console", evidence.handle_console)
-            page.on("pageerror", evidence.handle_page_error)
-            page.on("requestfailed", evidence.handle_request_failed)
-
-            console.print(f"[dim]Navigating to initial page: {start_url}[/dim]")
-            try:
-                await page.goto(start_url, timeout=15000, wait_until="domcontentloaded")
-            except Exception as e:
-                err_str = str(e)
-                if "ERR_CONNECTION_REFUSED" in err_str or "ConnectionRefused" in err_str:
-                    console.print(
-                        f"\n[bold red]❌ Connection Refused:[/bold red] Cannot reach {start_url}"
-                    )
-                    console.print(
-                        "[yellow]Please verify that your local development server is running![/yellow]"
-                    )
-                elif "Timeout" in err_str or "timeout" in err_str.lower():
-                    console.print(
-                        f"\n[bold red]❌ Timeout reaching:[/bold red] {start_url} (waited 15s)"
-                    )
-                else:
-                    console.print(f"\n[bold red]❌ Navigation error:[/bold red] {e}")
-
-                await browser.close()
-                return AgentExecutionReport(
-                    goal=goal,
-                    start_url=start_url,
-                    final_url=start_url,
-                    status=TestStatus.FAILED,
-                    summary=f"Failed to connect to {start_url}: {e}",
-                    errors_detected=[str(e)],
-                )
-
-            await asyncio.sleep(0.5)
-
-            final_status = TestStatus.PASSED
-            summary = ""
-            last_action_sig: str | None = None
-            last_url = page.url
-            consecutive_repeats = 0
-            stagnation_hint = ""
-
-            for step_num in range(1, max_steps + 1):
-                step_start = time.perf_counter()
-                obs = await self.observe_page(page, evidence)
-
-                # Format prompt for the LLM
-                element_summary = [
-                    f"[{el.id}] <{el.tag}> '{el.text}' -> selector: `{el.selector}`"
-                    for el in obs.interactive_elements[:45]
-                ]
-                elements_str = (
-                    "\n".join(element_summary)
-                    if element_summary
-                    else "(No interactive elements found)"
-                )
-
-                prompt = (
-                    f"User Goal: {goal}\n\n"
-                    f"Current URL: {obs.url}\n"
-                    f"Page Title: {obs.title}\n\n"
-                    f"Visible Interactive Elements:\n{elements_str}\n\n"
-                    f"Recent Console Errors:\n{json.dumps(obs.recent_errors)}\n"
-                )
-                if stagnation_hint:
-                    prompt += f"\n[CRITICAL NOTE]: {stagnation_hint}\n"
-
-                prompt += f"\nStep {step_num} of {max_steps}. What is the next action?"
-
-                # Get LLM decision
-                raw_response = await self.provider.complete(prompt, system_prompt=SYSTEM_PROMPT)
-                action = self._parse_action(raw_response)
-
-                console.print(f"\n[bold yellow]Step {step_num}:[/bold yellow] {action.thought}")
-                console.print(
-                    f"[cyan]Action:[/cyan] [bold]{action.action.upper()}[/bold] {action.selector or action.url or action.value or ''}"
-                )
-
-                # Stagnation loop detection: if same action & selector repeated with no URL change
-                action_sig = f"{action.action.lower()}:{action.selector or action.url or ''}"
-                if (
-                    action_sig == last_action_sig
-                    and page.url == last_url
-                    and action.action.lower() not in ("finish", "fail", "wait")
-                ):
-                    consecutive_repeats += 1
-                    if consecutive_repeats >= 2:
-                        stagnation_hint = (
-                            f"Action '{action_sig}' was already attempted and did not change the page state. "
-                            "Do NOT repeat this action. Choose another element, scroll, or conclude."
-                        )
-                else:
-                    consecutive_repeats = 0
-                    stagnation_hint = ""
-
-                last_action_sig = action_sig
+                final_status = TestStatus.PASSED
+                summary = ""
+                last_action_sig: str | None = None
                 last_url = page.url
+                consecutive_repeats = 0
+                stagnation_hint = ""
 
-                # Check termination actions before DOM execution
-                if action.action.lower() == "finish":
-                    final_status = TestStatus.PASSED
-                    summary = action.thought
-                    screenshot_file = self.screenshots_dir / f"step_{step_num}_finish.png"
-                    await page.screenshot(path=str(screenshot_file), full_page=False)
+                for step_num in range(1, max_steps + 1):
+                    step_start = time.perf_counter()
+                    obs = await self.observe_page(page, evidence)
+
+                    # Format prompt for the LLM
+                    element_summary = [
+                        f"[{el.id}] <{el.tag}> '{el.text}' -> selector: `{el.selector}`"
+                        for el in obs.interactive_elements[:45]
+                    ]
+                    elements_str = (
+                        "\n".join(element_summary)
+                        if element_summary
+                        else "(No interactive elements found)"
+                    )
+
+                    prompt = (
+                        f"User Goal: {goal}\n\n"
+                        f"Current URL: {obs.url}\n"
+                        f"Page Title: {obs.title}\n\n"
+                        f"Visible Interactive Elements:\n{elements_str}\n\n"
+                        f"Recent Console Errors:\n{json.dumps(obs.recent_errors)}\n"
+                    )
+                    if stagnation_hint:
+                        prompt += f"\n[CRITICAL NOTE]: {stagnation_hint}\n"
+
+                    prompt += f"\nStep {step_num} of {max_steps}. What is the next action?"
+
+                    # Get LLM decision
+                    raw_response = await self.provider.complete(prompt, system_prompt=SYSTEM_PROMPT)
+                    action = self._parse_action(raw_response)
+
+                    console.print(f"\n[bold yellow]Step {step_num}:[/bold yellow] {action.thought}")
+                    console.print(
+                        f"[cyan]Action:[/cyan] [bold]{action.action.upper()}[/bold] {action.selector or action.url or action.value or ''}"
+                    )
+
+                    # Stagnation loop detection: if same action & selector repeated with no URL change
+                    action_sig = f"{action.action.lower()}:{action.selector or action.url or ''}"
+                    if (
+                        action_sig == last_action_sig
+                        and page.url == last_url
+                        and action.action.lower() not in ("finish", "fail", "wait")
+                    ):
+                        consecutive_repeats += 1
+                        if consecutive_repeats >= 2:
+                            stagnation_hint = (
+                                f"Action '{action_sig}' was already attempted and did not change the page state. "
+                                "Do NOT repeat this action. Choose another element, scroll, or conclude."
+                            )
+                    else:
+                        consecutive_repeats = 0
+                        stagnation_hint = ""
+
+                    last_action_sig = action_sig
+                    last_url = page.url
+
+                    # Check termination actions before DOM execution
+                    if action.action.lower() == "finish":
+                        final_status = TestStatus.PASSED
+                        summary = action.thought
+                        screenshot_file = self.screenshots_dir / f"step_{step_num}_finish.png"
+                        await page.screenshot(path=str(screenshot_file), full_page=False)
+                        steps.append(
+                            AgentStep(
+                                step_number=step_num,
+                                action=action,
+                                url=page.url,
+                                duration_ms=round((time.perf_counter() - step_start) * 1000, 2),
+                                status=TestStatus.PASSED,
+                                screenshot_path=str(screenshot_file),
+                            )
+                        )
+                        break
+
+                    if action.action.lower() == "fail":
+                        final_status = TestStatus.FAILED
+                        summary = action.thought
+                        screenshot_file = self.screenshots_dir / f"step_{step_num}_fail.png"
+                        await page.screenshot(path=str(screenshot_file), full_page=False)
+                        steps.append(
+                            AgentStep(
+                                step_number=step_num,
+                                action=action,
+                                url=page.url,
+                                duration_ms=round((time.perf_counter() - step_start) * 1000, 2),
+                                status=TestStatus.FAILED,
+                                screenshot_path=str(screenshot_file),
+                            )
+                        )
+                        break
+
+                    # Execute action
+                    success, err_msg = await self._execute_action(page, action)
+                    step_screenshot: Path | None = self.screenshots_dir / f"step_{step_num}.png"
+                    try:
+                        await page.screenshot(path=str(step_screenshot), full_page=False)
+                    except Exception:
+                        step_screenshot = None
+
+                    step_duration = round((time.perf_counter() - step_start) * 1000, 2)
+                    step_status = TestStatus.PASSED if success else TestStatus.FAILED
+
+                    if not success:
+                        console.print(f"[bold red]❌ Action failed:[/bold red] {err_msg}")
+                    else:
+                        console.print(f"[green]✓ Action executed[/green] (Current URL: {page.url})")
+
                     steps.append(
                         AgentStep(
                             step_number=step_num,
                             action=action,
                             url=page.url,
-                            duration_ms=round((time.perf_counter() - step_start) * 1000, 2),
-                            status=TestStatus.PASSED,
-                            screenshot_path=str(screenshot_file),
+                            duration_ms=step_duration,
+                            status=step_status,
+                            screenshot_path=str(step_screenshot) if step_screenshot else None,
+                            error=err_msg,
                         )
                     )
-                    break
 
-                if action.action.lower() == "fail":
-                    final_status = TestStatus.FAILED
-                    summary = action.thought
-                    screenshot_file = self.screenshots_dir / f"step_{step_num}_fail.png"
-                    await page.screenshot(path=str(screenshot_file), full_page=False)
-                    steps.append(
-                        AgentStep(
-                            step_number=step_num,
-                            action=action,
-                            url=page.url,
-                            duration_ms=round((time.perf_counter() - step_start) * 1000, 2),
-                            status=TestStatus.FAILED,
-                            screenshot_path=str(screenshot_file),
-                        )
-                    )
-                    break
-
-                # Execute action
-                success, err_msg = await self._execute_action(page, action)
-                step_screenshot: Path | None = self.screenshots_dir / f"step_{step_num}.png"
-                try:
-                    await page.screenshot(path=str(step_screenshot), full_page=False)
-                except Exception:
-                    step_screenshot = None
-
-                step_duration = round((time.perf_counter() - step_start) * 1000, 2)
-                step_status = TestStatus.PASSED if success else TestStatus.FAILED
-
-                if not success:
-                    console.print(f"[bold red]❌ Action failed:[/bold red] {err_msg}")
-                else:
-                    console.print(f"[green]✓ Action executed[/green] (Current URL: {page.url})")
-
-                steps.append(
-                    AgentStep(
-                        step_number=step_num,
-                        action=action,
-                        url=page.url,
-                        duration_ms=step_duration,
-                        status=step_status,
-                        screenshot_path=str(step_screenshot) if step_screenshot else None,
-                        error=err_msg,
-                    )
-                )
-
-            final_url = page.url
-            await browser.close()
+                    final_url = page.url
+            finally:
+                if browser:
+                    try:
+                        await browser.close()
+                    except Exception:
+                        pass
 
         total_duration = round(time.perf_counter() - start_time, 2)
         all_errors = [e for e in evidence.page_errors]

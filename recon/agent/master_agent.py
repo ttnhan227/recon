@@ -94,6 +94,9 @@ class ReconMasterAgent:
 
     async def _execute_browser(self, url: str, goal: str, headless: bool = True) -> dict[str, Any]:
         """Runs the autonomous browser agent."""
+        from recon.common.security import validate_target_url
+
+        validate_target_url(url)
         console.print(f"[bold cyan]🌐 Launching Browser Agent for:[/bold cyan] {url}")
         agent = ReconBrowserAgent(provider=self.provider, output_dir=self.output_dir)
         report = await agent.run(start_url=url, goal=goal, headless=headless)
@@ -160,6 +163,9 @@ class ReconMasterAgent:
 
     async def _execute_scan(self, url: str) -> dict[str, Any]:
         """Scans endpoints and web pages."""
+        from recon.common.security import validate_target_url
+
+        validate_target_url(url)
         console.print(f"[bold cyan]🔎 Scanning Application Assets:[/bold cyan] {url}")
         app_data = await discover_application(url, enable_browser=True)
         return {
