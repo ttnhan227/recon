@@ -59,7 +59,7 @@
     <g transform="translate(0, 0)">
       <rect width="102" height="20" rx="10" fill="#083344" stroke="#06b6d4" stroke-width="0.8"/>
       <circle cx="10" cy="10" r="3" fill="#06b6d4"/>
-      <text x="18" y="13.5" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="10" font-weight="700" fill="#67e8f9" letter-spacing="0.5">PYPI v0.3.2</text>
+      <text x="18" y="13.5" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="10" font-weight="700" fill="#67e8f9" letter-spacing="0.5">PYPI v0.3.3</text>
     </g>
 
     <text x="0" y="48" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Inter', sans-serif" font-size="36" font-weight="800" fill="#ffffff" letter-spacing="-0.5">
